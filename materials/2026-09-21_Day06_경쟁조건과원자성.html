@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-21 Day06 — 경쟁 조건과 원자성</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.7;max-width:900px;margin:0 auto;padding:24px;background:#f7f8fb;color:#1f2937}
+section,header,nav{background:white;border:1px solid #dfe3ea;border-radius:14px;padding:20px;margin:14px 0}
+h1,h2,h3{line-height:1.35} code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} pre{background:#111827;color:white;padding:14px;border-radius:10px;overflow:auto}
+table{border-collapse:collapse;width:100%} th,td{border:1px solid #dfe3ea;padding:9px;text-align:left;vertical-align:top} th{background:#f3f4f6}
+details{border:1px solid #dfe3ea;border-radius:10px;padding:10px;margin:8px 0} summary{cursor:pointer;font-weight:700}
+.note{background:#eef2ff;border-left:4px solid #315efb;padding:12px;border-radius:8px}.muted{color:#667085}
+@media print{body{background:white;max-width:none}section,header,nav,details{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+<p><strong>CS-MASTERS-FOUNDATIONS v2.0.1 · Day06</strong></p>
+<h1>경쟁 조건(Race Condition)과 원자성(Atomicity)</h1>
+<p class="muted">2026-09-21 · Week 2 — 동시성·동기화와 잘못된 실행 · 약 30분</p>
+<p><strong>중심 질문:</strong> 두 스레드가 각각 정상적인 코드를 실행했는데도 왜 최종 결과가 틀릴 수 있는가?</p>
+</header>
+
+<nav>
+<strong>목차</strong>
+<ol>
+<li>오늘의 주제</li><li>학습 목표</li><li>이전 학습과의 연결</li><li>선수지식 복습</li><li>문제 상황</li>
+<li>핵심 개념</li><li>실제 시스템 사례</li><li>Trade-off와 대안</li><li>간단한 심화</li><li>핵심 요약</li>
+<li>확인 질문</li><li>연구자의 관점</li><li>Research Question 후보</li><li>다음 학습 예고</li><li>참고자료</li>
+</ol>
+</nav>
+
+<section><h2>1. 오늘의 주제</h2>
+<p>동시성(Concurrency)이 왜 어려운지 작은 실행을 추적하며 확인한다. 핵심은 경쟁 조건(Race Condition), Read-Modify-Write, 원자성(Atomicity), 불변식(Invariant)이다.</p></section>
+
+<section><h2>2. 학습 목표</h2>
+<ul>
+<li><code>x = x + 1</code> 같은 한 줄이 실제로 여러 단계로 실행될 수 있음을 설명한다.</li>
+<li>Race Condition이 실행 순서에 따라 결과가 달라지는 문제임을 확인한다.</li>
+<li>Atomicity가 필요한 이유를 설명한다.</li>
+<li>재고가 음수가 되지 않아야 한다 같은 Invariant를 동시성 문제와 연결한다.</li>
+</ul></section>
+
+<section><h2>3. 이전 학습과의 연결</h2>
+<p>Day03에서 여러 Thread가 같은 프로세스의 Data/Heap을 공유할 수 있음을 배웠고, Day04에서는 여러 실행 흐름이 번갈아 실행되는 Concurrency와 Blocking I/O를 배웠다.</p>
+<pre>Shared Memory
+   +
+Interleaving
+   ↓
+같은 상태를 동시에 읽고 수정
+   ↓
+Race Condition</pre>
+</section>
+
+<section><h2>4. 필요한 선수지식과 3~5분 복습</h2>
+<h3>Shared Memory</h3><p>같은 프로세스의 Thread들은 Code/Data/Heap의 많은 부분을 공유하므로 같은 변수 <code>stock</code>에 접근할 수 있다.</p>
+<h3>Context Switching</h3><p>Thread A가 작업을 끝내기 전에 CPU가 Thread B로 전환될 수 있다.</p>
+<h3>Invariant</h3><div class="note"><strong>오늘의 Invariant:</strong> 재고(stock)는 0보다 작아지면 안 되고, 성공한 예약 수는 실제 판매 가능한 수량을 넘으면 안 된다.</div>
+</section>
+
+<section><h2>5. 먼저 제시하는 문제 상황</h2>
+<p>재고가 1개 남았고 두 사용자가 거의 동시에 예약을 요청한다.</p>
+<pre>stock = 1
+
+if stock &gt; 0:
+    stock = stock - 1
+    예약 성공</pre>
+<table>
+<tr><th>순서</th><th>Thread A</th><th>Thread B</th><th>stock</th></tr>
+<tr><td>1</td><td>read → 1</td><td></td><td>1</td></tr>
+<tr><td>2</td><td></td><td>read → 1</td><td>1</td></tr>
+<tr><td>3</td><td>재고 있음 판단</td><td></td><td>1</td></tr>
+<tr><td>4</td><td></td><td>재고 있음 판단</td><td>1</td></tr>
+<tr><td>5</td><td>write 0</td><td></td><td>0</td></tr>
+<tr><td>6</td><td></td><td>write 0</td><td>0</td></tr>
+</table>
+<p>최종 stock은 0이지만 예약은 두 건 성공할 수 있다. 코드 한 줄씩 보면 정상이어도 전체 실행은 잘못될 수 있다.</p>
+</section>
+
+<section><h2>6. 핵심 개념</h2>
+<h3>6.1 Read-Modify-Write</h3>
+<pre>counter = counter + 1
+
+1. counter 읽기
+2. 1 더하기
+3. 결과 쓰기</pre>
+<p>소스 코드 한 줄이 실행의 한 단위라는 보장은 없다.</p>
+
+<h3>6.2 Lost Update</h3>
+<table>
+<tr><th>순서</th><th>A</th><th>B</th><th>counter</th></tr>
+<tr><td>1</td><td>read 10</td><td></td><td>10</td></tr>
+<tr><td>2</td><td></td><td>read 10</td><td>10</td></tr>
+<tr><td>3</td><td>calculate 11</td><td></td><td>10</td></tr>
+<tr><td>4</td><td></td><td>calculate 11</td><td>10</td></tr>
+<tr><td>5</td><td>write 11</td><td></td><td>11</td></tr>
+<tr><td>6</td><td></td><td>write 11</td><td>11</td></tr>
+</table>
+<p>두 번 증가했는데 결과는 11이다. 하나의 갱신이 사라졌다.</p>
+
+<h3>6.3 Race Condition</h3>
+<p><strong>Race Condition</strong>은 여러 실행 흐름이 공유 상태에 접근할 때 어떤 interleaving이 발생하느냐에 따라 프로그램의 결과나 올바름이 달라지는 상황이다.</p>
+
+<h3>6.4 Atomicity</h3>
+<p><strong>Atomicity</strong>는 어떤 작업이 중간 상태로 쪼개져 다른 실행이 끼어든 것처럼 보이지 않고 하나의 논리적 단위처럼 수행되는 성질이다.</p>
+<div class="note">“한 줄 코드 = atomic”은 아니다. Atomic한지는 언어, CPU 명령, 런타임, 동기화 방법에 따라 달라진다.</div>
+
+<h3>6.5 Invariant</h3>
+<p>Invariant는 시스템이 올바른 상태라면 항상 지켜져야 하는 조건이다. 동시성 제어의 목적은 단순히 직렬화하는 것이 아니라 필요한 Invariant를 지키는 것이다.</p>
+</section>
+
+<section><h2>7. 실제 시스템 사례</h2>
+<pre>if (inventory.getStock(productId) &gt; 0) {
+    inventory.decrease(productId);
+    reservation.create(...);
+}</pre>
+<p>여러 요청을 여러 Thread가 처리하면 조회와 변경 사이에 다른 요청이 끼어들 수 있다. 한 프로세스 내부에서는 Mutex/Lock이나 Atomic primitive, DB에서는 Transaction/Locking/MVCC/조건부 UPDATE 등이 사용될 수 있다.</p>
+<p>오늘은 해결책 자체보다 문제를 정확히 보는 데 집중한다.</p>
+</section>
+
+<section><h2>8. Trade-off와 대안</h2>
+<table>
+<tr><th>접근</th><th>장점</th><th>대가</th></tr>
+<tr><td>동기화 없음</td><td>제어 비용이 적고 병렬성 확보 가능</td><td>Race Condition 가능</td></tr>
+<tr><td>모든 작업 직렬화</td><td>이해와 correctness 확보가 쉬움</td><td>처리량 저하 가능</td></tr>
+<tr><td>필요 구간만 보호</td><td>Correctness와 Concurrency 균형</td><td>보호 범위를 설계하기 어려움</td></tr>
+</table>
+</section>
+
+<section><h2>9. 간단한 심화</h2>
+<p><strong>Atomicity</strong>와 <strong>Visibility</strong>는 다르다. Atomicity는 작업이 쪼개져 보이는가의 문제이고, Visibility는 한 Thread가 쓴 값을 다른 Thread가 언제 볼 수 있는가의 문제다.</p>
+</section>
+
+<section><h2>10. 핵심 요약</h2>
+<ol>
+<li>공유 변수를 다루는 한 줄의 코드도 여러 단계로 실행될 수 있다.</li>
+<li>Race Condition은 실행 순서에 따라 correctness가 달라지는 문제다.</li>
+<li>Read-Modify-Write가 섞이면 Lost Update가 생길 수 있다.</li>
+<li>Atomicity는 필요한 작업을 하나의 논리적 단위처럼 보이게 하는 성질이다.</li>
+<li>동시성 제어의 최종 목적은 Invariant를 지키는 것이다.</li>
+</ol>
+</section>
+
+<section><h2>11. 확인 질문 3~5개와 접이식 해설</h2>
+<h3>Q1. 왜 <code>x++</code>가 한 줄이라는 사실만으로 atomic하다고 말할 수 없는가?</h3>
+<details><summary>해설 보기</summary><p>읽기, 계산, 쓰기 등 여러 단계로 나뉠 수 있고 그 사이 다른 실행이 끼어들 수 있기 때문이다.</p></details>
+
+<h3>Q2. Race Condition과 “Thread가 여러 개 존재한다”는 왜 같은 말이 아닌가?</h3>
+<details><summary>해설 보기</summary><p>Thread가 여러 개 있어도 공유 상태를 위험하게 수정하지 않거나 적절한 동기화를 하면 Race Condition이 없을 수 있다. 결과가 실행 순서에 의존하는지가 핵심이다.</p></details>
+
+<h3>Q3. 재고 시스템의 Invariant를 한 문장으로 써보라.</h3>
+<details><summary>해설 보기</summary><p>예: 어떤 실행 순서에서도 성공한 예약 수가 판매 가능한 재고를 초과하지 않아야 한다.</p></details>
+
+<h3>Q4. 실행 추적</h3>
+<p>초기값 <code>counter = 5</code>에서 A와 B가 각각 <code>counter = counter + 1</code>을 실행한다. 최종값이 6이 되는 interleaving을 적어보라.</p>
+<details><summary>해설 보기</summary><pre>A: read 5
+B: read 5
+A: calculate 6
+B: calculate 6
+B: write 6
+A: write 6</pre><p>정상적인 직렬 실행이면 7이어야 한다.</p></details>
+
+<h3>Q5. 큰 Lock과 작은 Lock 범위의 trade-off는?</h3>
+<details><summary>해설 보기</summary><p>큰 Lock은 correctness를 이해하기 쉽지만 불필요한 직렬화를 만들 수 있고, 작은 Lock은 concurrency를 높일 수 있지만 보호 범위를 잘못 잡으면 Invariant가 깨질 수 있다.</p></details>
+</section>
+
+<section><h2>12. 연구자의 관점</h2>
+<ul>
+<li>Correctness vs Performance: 보호를 강하게 할수록 병목이 생길 수 있다.</li>
+<li>Bug Reproducibility: race bug는 특정 timing에서만 나타나 재현이 어렵다.</li>
+<li>Observability: 어떤 interleaving이 있었는지 추적하기 어렵다.</li>
+</ul>
+<p>이후 Software Engineering에서는 concurrency bug detection, deterministic replay, testing 같은 주제로 연결될 수 있다.</p>
+</section>
+
+<section><h2>13. Research Question 후보</h2>
+<p>1단계에서는 본격적인 RQ를 만들지 않는다. 현재는 “왜 race bug가 재현하기 어려운가?” 정도의 연구 관점만 남긴다.</p>
+</section>
+
+<section><h2>14. 다음 학습 예고</h2>
+<p><strong>Day07 — 임계 구역(Critical Section)과 뮤텍스(Mutex)</strong></p>
+<p>다음 중심 질문은 “공유 상태를 건드리는 코드 중 정확히 어디를 한 번에 한 Thread만 실행하게 해야 하는가?”이다.</p>
+</section>
+
+<section><h2>15. 참고자료와 지금 읽을 부분</h2>
+<ul>
+<li>OSTEP — Concurrency: An Introduction: counter 예제와 race condition 설명</li>
+<li>OSTEP 공식 사이트: Concurrency 섹션의 Introduction → Locks 순서</li>
+</ul>
+<p><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf">OSTEP Threads Intro PDF</a></p>
+<p><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/">OSTEP 공식 사이트</a></p>
+<p class="muted">오늘은 Lock 구현, Compare-and-Swap, Memory Barrier, Java Memory Model까지 확장하지 않는다.</p>
+</section>
+
+<footer>
+<p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 아직 미확인.</p>
+</footer>
+</body>
+</html>
