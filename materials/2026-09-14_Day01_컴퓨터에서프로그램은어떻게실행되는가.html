@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-14 Day01 — 컴퓨터에서 프로그램은 어떻게 실행되는가</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.72;max-width:920px;margin:0 auto;padding:24px;background:#f6f8fb;color:#1f2937}
+header,nav,section{background:#fff;border:1px solid #dfe3ea;border-radius:14px;padding:20px;margin:14px 0}
+h1,h2,h3{line-height:1.35} h1{margin:.2em 0}.muted{color:#667085}.note{background:#eef2ff;border-left:4px solid #315efb;padding:12px;border-radius:8px}
+.warn{background:#fff7e6;border-left-color:#a66b00} pre{background:#111827;color:#f9fafb;padding:14px;border-radius:10px;overflow:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid #dfe3ea;padding:9px;text-align:left;vertical-align:top}th{background:#f3f4f6}
+details{border:1px solid #dfe3ea;border-radius:10px;padding:10px;margin:8px 0}summary{cursor:pointer;font-weight:700}
+nav ol{columns:2}@media(max-width:650px){nav ol{columns:1}}@media print{body{background:#fff;max-width:none}header,nav,section,details{break-inside:avoid}}
+</style></head><body>
+<header><strong>CS-MASTERS-FOUNDATIONS v2.0.1 · Day01</strong>
+<h1>컴퓨터에서 프로그램은 어떻게 실행되는가</h1><p class="muted">2026-09-14 · Week 1 — 프로그램·프로세스·실행 상태 · 약 30분</p><p><strong>중심 질문:</strong> SSD에 저장된 프로그램 파일이 어떻게 실행 중인 프로세스가 되는가?</p></header>
+<nav><strong>목차</strong><ol><li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식과 3~5분 복습</a></li><li><a href="#s5">5. 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문 3~5개와 접이식 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료와 지금 읽을 부분</a></li></ol></nav>
+<section id="s1"><h2>1. 오늘의 주제</h2><p>CPU·Memory·Storage의 역할을 구분하고, 프로그램(Program)이 프로세스(Process)로 실행되는 흐름과 운영체제(Operating System, OS)의 역할을 이해한다.</p></section>
+<section id="s2"><h2>2. 학습 목표</h2><ul><li>CPU·Memory·Storage 역할 설명</li><li>Program과 Process 구분</li><li>OS가 실행을 관리하는 이유 설명</li><li>같은 프로그램의 여러 Process가 가능한 이유 설명</li></ul></section>
+<section id="s3"><h2>3. 이전 학습과의 연결</h2><p>첫 회차다. 앞으로 <strong>Program → Process → Memory → Thread → Concurrency → Network → DB → Distributed System</strong>으로 연결한다.</p></section>
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2><h3>Instruction</h3><p>CPU가 실행하는 작은 명령 단위.</p><h3>Address</h3><p>메모리 위치를 찾기 위한 번호.</p><h3>Function Call</h3><p>호출 위치와 돌아갈 위치 등 실행 상태가 필요하다.</p></section>
+<section id="s5"><h2>5. 문제 상황</h2><p><code>inventory-server</code> 파일이 SSD에 있어도 요청을 처리하지 못한다. 실행 위치, 변수 공간, CPU 사용 순서, I/O 접근을 누군가 준비·관리해야 한다.</p></section>
+<section id="s6"><h2>6. 핵심 개념</h2><table><tr><th>요소</th><th>역할</th></tr><tr><td>Storage</td><td>프로그램·데이터의 지속 보관</td></tr><tr><td>Memory</td><td>실행 중 코드·데이터 작업 공간</td></tr><tr><td>CPU</td><td>명령 실행</td></tr></table>
+<p><strong>Program</strong>은 정적인 명령·데이터 표현이고, <strong>Process</strong>는 실행 상태를 가진 동적 인스턴스다.</p>
+<pre>Storage → OS가 실행 환경 준비 → Memory 사용 → CPU 실행
+                         ↕
+                      System Call / I/O</pre>
+<p>OS는 추상화, 자원 관리, 보호·격리, 실행 관리를 제공한다.</p></section>
+<section id="s7"><h2>7. 실제 시스템 사례</h2><p>Unix 계열에서는 프로세스 생성과 프로그램 이미지 교체를 구분한다. Linux의 <code>execve()</code>는 현재 프로세스의 프로그램 이미지를 새 프로그램으로 교체한다.</p></section>
+<section id="s8"><h2>8. Trade-off와 대안</h2><p>OS 추상화와 Process Isolation은 안전성과 관리 편의성을 주지만 스케줄링·주소 변환·시스템 호출 같은 관리 비용을 만든다.</p></section>
+<section id="s9"><h2>9. 간단한 심화</h2><pre>Process ≈ Program Image
+        + Address Space
+        + CPU Register State
+        + Open Resources
+        + OS bookkeeping</pre><p>“RAM에 올라온 파일”만으로는 프로세스를 충분히 설명할 수 없다.</p></section>
+<section id="s10"><h2>10. 핵심 요약</h2><ol><li>Storage=지속 보관, Memory=실행 작업 공간, CPU=명령 실행.</li><li>Program과 Process는 다르다.</li><li>같은 Program에서도 여러 Process가 가능하다.</li><li>OS는 자원을 관리하고 격리를 제공한다.</li><li>실행은 상태 준비와 지속적인 CPU·OS 상호작용이다.</li></ol></section>
+<section id="s11"><h2>11. 확인 질문 3~5개와 접이식 해설</h2><h3>Q1 Program과 Process 차이는?</h3><details><summary>해설</summary><p>Process에는 현재 실행 상태가 포함된다.</p></details>
+<h3>Q2 SSD가 있는데 RAM이 왜 필요한가?</h3><details><summary>해설</summary><p>지속 저장과 빠른 실행 작업 공간의 역할이 다르다.</p></details>
+<h3>Q3 같은 프로그램 두 실행의 변수 값은 항상 같은가?</h3><details><summary>해설</summary><p>아니다. 각 Process는 독립 실행 상태를 가질 수 있다.</p></details>
+<h3>Q4 실행 추적</h3><p>파일 보존→Storage, 실행 환경 준비→OS/Memory, 덧셈 실행→CPU, 변수 읽기→CPU/Memory로 연결해 보라.</p><details><summary>해설</summary><p>실제 시스템에서는 구성 요소가 협력하며 역할 경계를 구분하는 것이 핵심이다.</p></details></section>
+<section id="s12"><h2>12. 연구자의 관점</h2><p>Process startup cost, isolation vs overhead, CPU scheduling의 latency·throughput·fairness를 관찰 변수로 생각해볼 수 있다.</p></section>
+<section id="s13"><h2>13. Research Question 후보</h2><p>1단계에서는 본격적인 RQ를 만들지 않는다. 정확한 시스템 모델 구축이 우선이다.</p></section>
+<section id="s14"><h2>14. 다음 학습 예고</h2><p><strong>Day02 — Address Space, Code/Data, Stack/Heap, Process Isolation.</strong> 같은 주소 숫자를 두 Process가 써도 왜 충돌하지 않는지 본다.</p></section>
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2><ul><li>OSTEP — The Abstraction: The Process, 초반 process/machine state 설명</li><li>Linux man-pages — execve(2), DESCRIPTION 첫 부분</li></ul></section>
+<footer class="muted"><p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 미확인.</p></footer>
+</body></html>
