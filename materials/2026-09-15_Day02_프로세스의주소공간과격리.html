@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-15 Day02 — 프로세스의 주소 공간과 격리</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.72;max-width:920px;margin:0 auto;padding:24px;background:#f6f8fb;color:#1f2937}
+header,nav,section{background:#fff;border:1px solid #dfe3ea;border-radius:14px;padding:20px;margin:14px 0}
+h1,h2,h3{line-height:1.35} h1{margin:.2em 0}.muted{color:#667085}.note{background:#eef2ff;border-left:4px solid #315efb;padding:12px;border-radius:8px}
+.warn{background:#fff7e6;border-left-color:#a66b00} pre{background:#111827;color:#f9fafb;padding:14px;border-radius:10px;overflow:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid #dfe3ea;padding:9px;text-align:left;vertical-align:top}th{background:#f3f4f6}
+details{border:1px solid #dfe3ea;border-radius:10px;padding:10px;margin:8px 0}summary{cursor:pointer;font-weight:700}
+nav ol{columns:2}@media(max-width:650px){nav ol{columns:1}}@media print{body{background:#fff;max-width:none}header,nav,section,details{break-inside:avoid}}
+</style></head><body>
+<header><strong>CS-MASTERS-FOUNDATIONS v2.0.1 · Day02</strong>
+<h1>프로세스의 주소 공간과 격리</h1><p class="muted">2026-09-15 · Week 1 — 프로그램·프로세스·실행 상태 · 약 30분</p><p><strong>중심 질문:</strong> Process A와 B가 같은 주소 숫자를 사용해도 왜 서로의 메모리를 덮어쓰지 않는가?</p></header>
+<nav><strong>목차</strong><ol><li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식과 3~5분 복습</a></li><li><a href="#s5">5. 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문 3~5개와 접이식 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료와 지금 읽을 부분</a></li></ol></nav>
+<section id="s1"><h2>1. 오늘의 주제</h2><p>주소 공간(Address Space), Code/Data, Stack/Heap, Process Isolation의 큰 그림을 이해한다.</p></section>
+<section id="s2"><h2>2. 학습 목표</h2><ul><li>Address Space 정의</li><li>Code/Data/Heap/Stack 역할 구분</li><li>Virtual Address와 Physical Memory의 차이 이해</li><li>Process Isolation의 필요성 설명</li></ul></section>
+<section id="s3"><h2>3. 이전 학습과의 연결</h2><p>Day01의 “Process = Program + 실행 상태”에서 메모리 부분을 구체화한다.</p></section>
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2><p>변수는 실행 중 메모리 위치와 연결되고, 함수 호출은 지역 상태와 복귀 정보를 필요로 한다. 오늘은 Page Table/TLB 세부는 다루지 않는다.</p></section>
+<section id="s5"><h2>5. 문제 상황</h2><pre>Process A: virtual 0x1000 → stock
+Process B: virtual 0x1000 → userCount</pre><p>주소 숫자가 같은데도 왜 충돌하지 않는가?</p></section>
+<section id="s6"><h2>6. 핵심 개념</h2><p><strong>Address Space</strong>는 한 Process가 사용할 수 있다고 보는 주소의 논리적 세계다.</p>
+<pre>높은 주소
+┌──────────┐
+│ Stack    │
+│    ↓     │
+│          │
+│    ↑     │
+│ Heap     │
+├──────────┤
+│ Data     │
+├──────────┤
+│ Code     │
+└──────────┘
+낮은 주소</pre>
+<p>각 Process의 Virtual Address는 OS와 hardware의 mapping을 통해 서로 다른 Physical Page로 이어질 수 있다.</p></section>
+<section id="s7"><h2>7. 실제 시스템 사례</h2><p>Linux의 <code>/proc/&lt;pid&gt;/maps</code>는 한 Process의 가상 주소 범위, 접근 권한, 파일 mapping 등을 보여준다.</p></section>
+<section id="s8"><h2>8. Trade-off와 대안</h2><table><tr><th>접근</th><th>장점</th><th>대가</th></tr><tr><td>독립 주소 공간</td><td>격리·보안</td><td>IPC 필요, 주소 관리 비용</td></tr><tr><td>Shared Memory</td><td>빠른 공유</td><td>동기화 복잡성</td></tr><tr><td>Message Passing</td><td>경계 명확</td><td>직렬화·복사 비용 가능</td></tr></table></section>
+<section id="s9"><h2>9. 간단한 심화</h2><pre>Virtual Address → 주소 변환 → Physical Page → RAM</pre><p>Virtual Memory는 단순히 RAM 부족 시 disk 사용 기능만을 뜻하지 않는다. 주소 공간 추상화와 격리가 핵심 역할이다.</p></section>
+<section id="s10"><h2>10. 핵심 요약</h2><ol><li>Address Space는 Process가 보는 논리적 주소 세계다.</li><li>Code/Data/Heap/Stack으로 큰 역할을 나눠 볼 수 있다.</li><li>같은 Virtual Address가 같은 Physical Address를 뜻하지 않는다.</li><li>Process Isolation은 안정성과 보안의 기반이다.</li><li>의도적으로 Shared Memory를 만들 수도 있다.</li></ol></section>
+<section id="s11"><h2>11. 확인 질문 3~5개와 접이식 해설</h2><h3>Q1 Address Space가 RAM의 연속 구간이라는 설명이 왜 부정확한가?</h3><details><summary>해설</summary><p>가상 주소의 논리적 공간이며 물리 RAM과의 mapping이 별도다.</p></details>
+<h3>Q2 Stack과 Heap 차이는?</h3><details><summary>해설</summary><p>Stack은 함수 호출 상태와 밀접하고, Heap은 동적 메모리와 밀접하다.</p></details>
+<h3>Q3 Isolation이 없다면?</h3><details><summary>해설</summary><p>다른 Process의 메모리 침범과 오류 전파 위험이 커진다.</p></details>
+<h3>Q4 실행 추적</h3><pre>A: virtual 0x1000 → physical page 5 → 10
+B: virtual 0x1000 → physical page 9 → 50</pre><p>A가 11을 쓰면 각 Process는 무엇을 읽는가?</p><details><summary>해설</summary><p>A=11, B=50. mapping이 다르기 때문이다.</p></details></section>
+<section id="s12"><h2>12. 연구자의 관점</h2><p>Isolation vs overhead, shared-memory safety, Process/Container/VM 경계의 비용을 비교하는 관점으로 확장할 수 있다.</p></section>
+<section id="s13"><h2>13. Research Question 후보</h2><p>1단계에서는 RQ를 확정하지 않는다.</p></section>
+<section id="s14"><h2>14. 다음 학습 예고</h2><p><strong>Day03 — Thread와 실행 문맥.</strong> 같은 Process 안에서 무엇을 공유하고 무엇을 각자 가져야 하는지 본다.</p></section>
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2><ul><li>OSTEP — Address Spaces / Memory Virtualization 초반</li><li>Linux man-pages — proc_pid_maps(5)</li><li>Linux man-pages — mmap(2) DESCRIPTION 첫 부분</li></ul></section>
+<footer class="muted"><p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 미확인.</p></footer>
+</body></html>
