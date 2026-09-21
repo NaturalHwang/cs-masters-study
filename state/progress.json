@@ -5,7 +5,7 @@
   "last_successful_path": "materials/2026-09-21_Day06_경쟁조건과원자성.html",
   "last_successful_commit": "1cd0c50878ad3960a3f82af45deaba5775f707a9",
   "last_run_status": "success",
-  "history_note": "Day01-Day05 were generated in ChatGPT before GitHub migration; they are not yet backfilled to this repository.",
+  "history_note": "Day01-Day06 are now present in materials/. Day01-Day05 were backfilled to GitHub on 2026-09-21; Day06 is the current last successful scheduled-study day.",
   "user_reading_status": "unknown",
   "user_understanding_status": "unknown"
 }
