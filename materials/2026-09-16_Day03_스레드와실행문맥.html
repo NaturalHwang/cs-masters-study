@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-16 Day03 — 스레드와 실행 문맥</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.72;max-width:920px;margin:0 auto;padding:24px;background:#f6f8fb;color:#1f2937}
+header,nav,section{background:#fff;border:1px solid #dfe3ea;border-radius:14px;padding:20px;margin:14px 0}
+h1,h2,h3{line-height:1.35} h1{margin:.2em 0}.muted{color:#667085}.note{background:#eef2ff;border-left:4px solid #315efb;padding:12px;border-radius:8px}
+.warn{background:#fff7e6;border-left-color:#a66b00} pre{background:#111827;color:#f9fafb;padding:14px;border-radius:10px;overflow:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid #dfe3ea;padding:9px;text-align:left;vertical-align:top}th{background:#f3f4f6}
+details{border:1px solid #dfe3ea;border-radius:10px;padding:10px;margin:8px 0}summary{cursor:pointer;font-weight:700}
+nav ol{columns:2}@media(max-width:650px){nav ol{columns:1}}@media print{body{background:#fff;max-width:none}header,nav,section,details{break-inside:avoid}}
+</style></head><body>
+<header><strong>CS-MASTERS-FOUNDATIONS v2.0.1 · Day03</strong>
+<h1>스레드와 실행 문맥</h1><p class="muted">2026-09-16 · Week 1 — 프로그램·프로세스·실행 상태 · 약 30분</p><p><strong>중심 질문:</strong> 같은 Process의 Thread들은 무엇을 공유하고, 무엇을 각자 가져야 하는가?</p></header>
+<nav><strong>목차</strong><ol><li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식과 3~5분 복습</a></li><li><a href="#s5">5. 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문 3~5개와 접이식 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료와 지금 읽을 부분</a></li></ol></nav>
+<section id="s1"><h2>1. 오늘의 주제</h2><p>Process와 Thread의 차이, Shared Memory, 개별 Stack·Register, Context Switching을 이해한다.</p></section>
+<section id="s2"><h2>2. 학습 목표</h2><ul><li>Process vs Thread 구분</li><li>Thread가 공유하는 것과 개별 보유 상태 설명</li><li>Context의 의미 설명</li><li>Context Switching이 왜 필요한지 이해</li></ul></section>
+<section id="s3"><h2>3. 이전 학습과의 연결</h2><p>Day02에서 Process마다 Address Space가 있음을 배웠다. 오늘은 한 Address Space 안에 여러 실행 흐름이 있을 수 있음을 본다.</p></section>
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2><p>Code/Data/Heap/Stack을 복습한다. 함수 호출과 CPU Register는 현재 실행 위치를 표현하는 데 필요하다.</p></section>
+<section id="s5"><h2>5. 문제 상황</h2><p>서버가 한 요청의 disk/network I/O를 기다리는 동안 다른 요청까지 멈춰야 할까? 여러 실행 흐름이 있으면 대기 중에도 다른 일을 진행할 수 있다.</p></section>
+<section id="s6"><h2>6. 핵심 개념</h2><p><strong>Thread</strong>는 Process 안의 실행 흐름이다.</p>
+<table><tr><th>공유</th><th>Thread별 개별 상태</th></tr><tr><td>Code, Data, Heap, 열린 Process 자원 다수</td><td>Stack, Register state, Instruction Pointer 등</td></tr></table>
+<pre>Process
+┌────────────────────┐
+│ Code / Data / Heap │ ← shared
+│ Thread A Stack     │
+│ Thread B Stack     │
+└────────────────────┘</pre>
+<p><strong>Context</strong>는 실행을 멈췄다가 다시 이어가기 위해 필요한 상태다. <strong>Context Switching</strong>은 실행 주체를 바꾸며 이전 상태를 저장하고 다음 상태를 복원하는 과정이다.</p></section>
+<section id="s7"><h2>7. 실제 시스템 사례</h2><p>일반적인 서버 런타임은 여러 요청을 여러 Thread 또는 유사 실행 단위로 처리할 수 있다. 실제 스레딩 모델은 언어·런타임·서버에 따라 다르므로 특정 프레임워크 동작으로 일반화하지 않는다.</p></section>
+<section id="s8"><h2>8. Trade-off와 대안</h2><table><tr><th>많은 Thread</th><th>적은 Thread</th></tr><tr><td>I/O 대기 동안 다른 작업 진행 가능</td><td>상태·스케줄링 비용 감소</td></tr><tr><td>메모리·스케줄링·동기화 복잡성 증가</td><td>Blocking 작업이 많으면 활용도 저하 가능</td></tr></table></section>
+<section id="s9"><h2>9. 간단한 심화</h2><p>Process context switch와 Thread context switch의 비용은 상황과 구현에 따라 다르다. “Thread switch는 항상 매우 싸다”처럼 절대화하지 않는다.</p></section>
+<section id="s10"><h2>10. 핵심 요약</h2><ol><li>Process는 자원과 주소 공간의 큰 경계, Thread는 그 안의 실행 흐름이다.</li><li>Thread들은 많은 메모리를 공유한다.</li><li>각 Thread는 자기 Stack·Register 실행 상태가 필요하다.</li><li>Context Switching은 실행을 이어가기 위한 상태 교체다.</li><li>공유는 효율을 주지만 동기화 문제의 출발점이 된다.</li></ol></section>
+<section id="s11"><h2>11. 확인 질문 3~5개와 접이식 해설</h2><h3>Q1 Thread 둘이 같은 Heap 객체를 볼 수 있는가?</h3><details><summary>해설</summary><p>같은 Process라면 공유 주소 공간의 Heap을 함께 사용할 수 있다.</p></details>
+<h3>Q2 왜 Stack은 보통 Thread별로 필요한가?</h3><details><summary>해설</summary><p>각 Thread가 독립 함수 호출 흐름과 지역 상태를 가져야 하기 때문이다.</p></details>
+<h3>Q3 Register state는 왜 Context에 포함되는가?</h3><details><summary>해설</summary><p>현재 계산과 실행 위치를 나중에 이어가기 위해 필요하다.</p></details>
+<h3>Q4 실행 추적</h3><p>A가 함수 내부에서 멈추고 B가 실행된 뒤 다시 A로 돌아올 때 저장·복원해야 할 상태를 적어보라.</p><details><summary>해설</summary><p>최소한 실행 위치와 관련 register state, stack pointer 등 실행 문맥이 필요하다.</p></details></section>
+<section id="s12"><h2>12. 연구자의 관점</h2><p>Thread scheduling, context-switch overhead, thread-per-request vs event-driven 구조, concurrency bug의 관찰 가능성으로 이어질 수 있다.</p></section>
+<section id="s13"><h2>13. Research Question 후보</h2><p>1단계에서는 본격 RQ 생성을 하지 않는다.</p></section>
+<section id="s14"><h2>14. 다음 학습 예고</h2><p><strong>Day04 — Sequential/Concurrent/Parallel, Running/Ready/Blocked, Blocking I/O.</strong></p></section>
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2><ul><li>OSTEP — Concurrency: An Introduction, Thread state와 shared address space 부분</li><li>OSTEP — CPU Scheduling 관련 초반 개념은 Day04 연결용으로만 참고</li></ul></section>
+<footer class="muted"><p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 미확인.</p></footer>
+</body></html>
