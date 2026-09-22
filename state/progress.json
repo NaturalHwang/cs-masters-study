@@ -1,11 +1,11 @@
 {
   "curriculum_version": "CS-MASTERS-FOUNDATIONS v2.1-github",
-  "last_successful_day": 6,
-  "next_day": 7,
-  "last_successful_path": "materials/2026-09-21_Day06_경쟁조건과원자성.html",
-  "last_successful_commit": "1cd0c50878ad3960a3f82af45deaba5775f707a9",
+  "last_successful_day": 7,
+  "next_day": 8,
+  "last_successful_path": "materials/2026-09-22_Day07_임계구역과뮤텍스.html",
+  "last_successful_commit": "c17ad3e6e1a44ddbce3e225a8b396686c86e5687",
   "last_run_status": "success",
-  "history_note": "Day01-Day06 are now present in materials/. Day01-Day05 were backfilled to GitHub on 2026-09-21; Day06 is the current last successful scheduled-study day.",
+  "history_note": "Day01-Day07 are present in materials/. Day01-Day05 were backfilled to GitHub on 2026-09-21; Day06 was migrated as the first GitHub-backed current lesson; Day07 was generated and verified on 2026-09-22.",
   "user_reading_status": "unknown",
   "user_understanding_status": "unknown"
 }
