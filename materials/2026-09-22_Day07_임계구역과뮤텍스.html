@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-22 Day07 — 임계 구역과 뮤텍스</title>
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--text:#1f2937;--muted:#667085;--line:#dfe3ea;--accent:#315efb;--accent-soft:#eef2ff;--warn:#fff7e6;--good:#edf9f1;--code:#111827}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo",Arial,sans-serif;line-height:1.72}
+main{max-width:960px;margin:0 auto;padding:28px 18px 68px}header,nav,section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin:0 0 16px}header{background:linear-gradient(135deg,#fff,#f2f5ff);padding:30px}
+h1{font-size:2rem;line-height:1.3;margin:4px 0 10px}h2{font-size:1.38rem;margin:0 0 14px}h3{font-size:1.08rem;margin:20px 0 8px}p{margin:8px 0 12px}ul,ol{padding-left:22px}li{margin:5px 0}.eyebrow{font-weight:760;color:var(--accent)}.muted,.small{color:var(--muted)}.small{font-size:.92rem}.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:14px 16px;border-radius:10px;margin:14px 0}.warn{border-left-color:#a66b00;background:var(--warn)}.good{border-left-color:#1f7a4d;background:var(--good)}
+pre{background:var(--code);color:#f9fafb;border-radius:12px;padding:16px;overflow:auto;line-height:1.5}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.diagram{white-space:pre;overflow:auto;background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.45}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.96rem}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#f4f6f8}details{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 14px;margin:10px 0}summary{cursor:pointer;font-weight:720}nav ul{columns:2;column-gap:28px}nav a,a{color:#2247c7;text-decoration:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.grid div{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}footer{color:var(--muted);font-size:.9rem;margin-top:24px}@media(max-width:650px){nav ul{columns:1}h1{font-size:1.65rem}}@media print{body{background:#fff}main{max-width:none;padding:0}header,nav,section,details{break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">CS-MASTERS-FOUNDATIONS v2.1 · Day07</div>
+<h1>임계 구역(Critical Section)과 뮤텍스(Mutex)</h1>
+<p class="muted">2026-09-22 · Week 2 — 동시성·동기화와 잘못된 실행 · 약 30분</p>
+<p><strong>오늘의 중심 질문:</strong> Race Condition을 막기 위해 코드 전체가 아니라 정확히 어느 구간을 한 번에 한 Thread만 실행하게 해야 하는가?</p>
+<div class="grid"><div><strong>2분</strong><br>주제·목표·연결</div><div><strong>4분</strong><br>선수지식 복습</div><div><strong>9분</strong><br>문제·핵심 개념</div><div><strong>4분</strong><br>실제 사례·Trade-off</div><div><strong>7분</strong><br>요약·확인 문제</div><div><strong>4분</strong><br>연구 관점·예고·자료</div></div>
+</header>
+
+<nav><h2>목차</h2><ul>
+<li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식</a></li><li><a href="#s5">5. 먼저 제시하는 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문과 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료</a></li>
+</ul></nav>
+
+<section id="s1"><h2>1. 오늘의 주제</h2>
+<p>Day06에서 공유 변수에 대한 <strong>Read-Modify-Write</strong>가 서로 섞이면 결과가 틀릴 수 있음을 확인했습니다. 오늘은 그 문제를 해결하기 위한 가장 기본적인 도구인 <strong>임계 구역(Critical Section)</strong>, <strong>상호 배제(Mutual Exclusion)</strong>, <strong>뮤텍스(Mutex/Lock)</strong>를 배웁니다.</p>
+<div class="callout"><strong>핵심 방향:</strong> “Lock을 쓴다”가 목적이 아니라, <strong>Invariant를 깨뜨릴 수 있는 구간을 정확히 찾아 그 구간의 동시 실행을 제한한다</strong>가 목적입니다.</div>
+</section>
+
+<section id="s2"><h2>2. 학습 목표</h2>
+<ul><li>Critical Section을 공유 상태의 올바름 관점에서 설명할 수 있다.</li><li>Mutual Exclusion이 무엇을 보장하고 무엇을 자동으로 보장하지 않는지 설명할 수 있다.</li><li>Mutex의 lock/unlock 흐름을 작은 실행으로 추적할 수 있다.</li><li>Lock 범위가 너무 좁거나 너무 넓을 때 각각 어떤 문제가 생기는지 비교할 수 있다.</li></ul>
+</section>
+
+<section id="s3"><h2>3. 이전 학습과의 연결</h2>
+<p>Day06의 문제는 다음과 같았습니다.</p>
+<div class="diagram">Shared Memory
+   +
+Interleaving
+   ↓
+Read → Modify → Write가 서로 섞임
+   ↓
+Race Condition / Lost Update
+   ↓
+Invariant 위반 가능</div>
+<p>오늘은 이 흐름에서 “어떤 코드 구간을 한 번에 한 Thread만 통과시키면 Invariant를 지킬 수 있는가?”를 다룹니다.</p>
+</section>
+
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2>
+<h3>4.1 Atomicity</h3><p>여러 단계의 작업이 다른 실행과 중간에 섞이지 않고 하나의 논리적 단위처럼 보여야 할 때 원자성(Atomicity)이 필요합니다.</p>
+<h3>4.2 Invariant</h3><p>재고 예약 서비스의 예:</p><div class="callout good"><strong>Invariant:</strong> 성공한 예약 수는 판매 가능한 재고를 초과하면 안 된다.</div>
+<h3>4.3 Interleaving</h3><p>한 Thread가 소스 코드 한 줄을 “완전히 끝낸 뒤에만” 다른 Thread가 실행된다고 가정할 수 없습니다. Scheduler와 CPU 실행은 더 작은 단계 사이에서 실행을 전환할 수 있습니다.</p>
+<div class="callout warn"><strong>오늘의 깊이 제한:</strong> Lock 구현에 쓰이는 test-and-set, compare-and-swap, spinlock, memory barrier는 오늘 상세히 다루지 않습니다. 먼저 Lock을 <em>사용하는 쪽의 의미</em>를 정확히 잡습니다.</div>
+</section>
+
+<section id="s5"><h2>5. 먼저 제시하는 문제 상황</h2>
+<p>재고가 1개이고 두 Thread가 같은 함수를 실행한다고 합시다.</p>
+<pre><code>if stock &gt; 0:
+    stock = stock - 1
+    reservationCount = reservationCount + 1</code></pre>
+<p>여기서 보호해야 할 것은 단순히 <code>stock = stock - 1</code> 한 줄일까요?</p>
+<p>아닙니다. <strong>재고 확인과 감소가 하나의 판단 단위</strong>라면, 그 사이에 다른 Thread가 끼어들면 여전히 두 요청이 모두 “재고 있음”으로 판단할 수 있습니다.</p>
+<table><thead><tr><th>보호 범위</th><th>문제</th></tr></thead><tbody><tr><td>감소 한 줄만 보호</td><td>재고 확인은 Lock 밖에서 동시에 수행될 수 있어 잘못된 판단 가능</td></tr><tr><td>확인+감소를 함께 보호</td><td>두 Thread가 같은 시점의 재고를 근거로 동시에 성공 판단하는 것을 막을 수 있음</td></tr></tbody></table>
+</section>
+
+<section id="s6"><h2>6. 핵심 개념 — 직관 → 예 → 정의 → 동작</h2>
+<h3>6.1 Critical Section — “동시에 들어가면 안 되는 코드 구역”</h3>
+<p><strong>임계 구역(Critical Section)</strong>은 공유 상태를 읽거나 변경하는 코드 중, 여러 실행 흐름이 동시에 수행하면 올바름이 깨질 수 있어서 <strong>동시 실행을 제어해야 하는 구간</strong>입니다.</p>
+<p>중요한 점은 Critical Section이 “공유 변수를 만지는 모든 코드”와 정확히 같은 말은 아니라는 것입니다. 어떤 Invariant를 지켜야 하는지에 따라 보호 범위를 정해야 합니다.</p>
+
+<h3>6.2 Mutual Exclusion — 한 번에 하나만</h3>
+<p><strong>상호 배제(Mutual Exclusion)</strong>는 특정 Critical Section에 같은 시점에 둘 이상의 Thread가 들어가지 못하도록 하는 성질입니다.</p>
+<div class="diagram">Thread A ---- lock 획득 ---- [ Critical Section ] ---- unlock ----
+Thread B ---- lock 시도 ---- [    기다림       ] ---- lock 획득 ...</div>
+<p>이렇게 하면 Critical Section 내부의 실행은 Thread A와 B 사이에서 겹치지 않습니다.</p>
+
+<h3>6.3 Mutex</h3>
+<p><strong>Mutex</strong>는 Mutual Exclusion을 제공하기 위해 사용하는 대표적인 Lock 객체입니다. 개념적으로 상태는 다음처럼 볼 수 있습니다.</p>
+<div class="diagram">UNLOCKED  --lock()-->  LOCKED(owner=A)
+LOCKED    --unlock()--> UNLOCKED</div>
+<p>다른 Thread가 이미 소유한 Mutex를 획득하려 하면 일반적인 blocking mutex에서는 사용할 수 있게 될 때까지 기다릴 수 있습니다. 실제 세부 동작은 mutex 종류와 구현에 따라 달라질 수 있습니다.</p>
+
+<h3>6.4 작은 재고 예제</h3>
+<pre><code>lock(mutex)
+try:
+    if stock &gt; 0:
+        stock = stock - 1
+        reservationCount = reservationCount + 1
+finally:
+    unlock(mutex)</code></pre>
+<p>여기서 Lock의 목적은 코드 모양을 바꾸는 것이 아니라, <strong>재고 확인→상태 변경</strong>이 다른 Thread와 섞이지 않도록 하여 Invariant를 지키는 것입니다.</p>
+
+<h3>6.5 실행 추적</h3>
+<table><thead><tr><th>순서</th><th>Thread A</th><th>Thread B</th><th>Mutex</th><th>stock</th></tr></thead><tbody>
+<tr><td>1</td><td>lock 획득</td><td></td><td>A 소유</td><td>1</td></tr>
+<tr><td>2</td><td>stock 읽음 → 1</td><td>lock 시도</td><td>A 소유, B 대기</td><td>1</td></tr>
+<tr><td>3</td><td>stock=0</td><td>대기</td><td>A 소유</td><td>0</td></tr>
+<tr><td>4</td><td>unlock</td><td>대기/획득 가능</td><td>해제</td><td>0</td></tr>
+<tr><td>5</td><td></td><td>lock 획득 후 stock 읽음 → 0</td><td>B 소유</td><td>0</td></tr>
+<tr><td>6</td><td></td><td>예약 거절, unlock</td><td>해제</td><td>0</td></tr>
+</tbody></table>
+<p>두 Thread가 모두 Critical Section에 들어가긴 하지만 <strong>동시에</strong> 들어가지는 않았습니다.</p>
+</section>
+
+<section id="s7"><h2>7. 실제 시스템 사례</h2>
+<p>POSIX Threads의 <code>pthread_mutex_lock()</code>은 mutex를 잠그고, 다른 Thread가 이미 소유 중이면 mutex가 사용 가능해질 때까지 호출 Thread가 block될 수 있습니다. <code>pthread_mutex_unlock()</code>은 mutex를 해제합니다. 대기 중인 Thread가 여러 개일 때 다음 소유자를 누가 되는지는 scheduling policy의 영향을 받습니다.</p>
+<pre><code>pthread_mutex_lock(&amp;mutex);
+/* critical section */
+stock--;
+pthread_mutex_unlock(&amp;mutex);</code></pre>
+<div class="callout"><strong>학습용 모델과 실제 시스템 구분:</strong> 위 코드는 “mutex로 임계 구역을 감싼다”는 의미를 보여주는 최소 예입니다. 실제 운영 코드는 error handling, cancellation, lock ordering, 데이터 소유권 등을 더 고려해야 합니다.</div>
+</section>
+
+<section id="s8"><h2>8. Trade-off와 대안</h2>
+<table><thead><tr><th>설계</th><th>얻는 것</th><th>대가</th></tr></thead><tbody>
+<tr><td>Lock 없음</td><td>동시 실행 제한이 적음</td><td>Race Condition으로 correctness 깨질 수 있음</td></tr>
+<tr><td>아주 큰 Lock 범위</td><td>올바름을 추론하기 쉬운 경우가 많음</td><td>독립 작업도 함께 직렬화되어 concurrency 감소</td></tr>
+<tr><td>필요한 상태 전이만 Lock</td><td>Correctness와 concurrency 균형 가능</td><td>정확한 보호 범위를 찾기 어려움</td></tr>
+<tr><td>공유 상태 자체를 줄임</td><td>Lock 필요성·경쟁 감소 가능</td><td>데이터 복사·메시지 전달·설계 변경 비용 가능</td></tr>
+</tbody></table>
+<p>좋은 Lock 설계는 “Lock을 최대한 많이 건다”가 아니라, <strong>필요한 Invariant를 만족하면서 경쟁이 불필요한 부분은 함께 실행될 수 있게 하는 것</strong>입니다.</p>
+</section>
+
+<section id="s9"><h2>9. 간단한 심화 — Lock 범위와 책임 경계</h2>
+<p>다음 두 코드를 비교해봅시다.</p>
+<pre><code>// 너무 좁을 수 있는 범위
+if stock &gt; 0:
+    lock(mutex)
+    stock--
+    unlock(mutex)</code></pre>
+<pre><code>// Invariant 기준으로 더 타당할 수 있는 범위
+lock(mutex)
+if stock &gt; 0:
+    stock--
+unlock(mutex)</code></pre>
+<p>두 번째는 “재고를 보고 판단하는 순간”과 “재고를 바꾸는 순간”을 같은 보호 구역에 둡니다. 이것이 <strong>check-then-act</strong> 패턴에서 중요한 이유입니다.</p>
+<div class="callout warn"><strong>주의:</strong> Mutex 하나를 썼다고 모든 동시성 문제가 자동으로 해결되는 것은 아닙니다. 잘못된 Lock 선택, 잘못된 범위, 여러 Lock 사이 순서 문제는 이후 Deadlock과 연결됩니다.</div>
+</section>
+
+<section id="s10"><h2>10. 핵심 요약</h2>
+<ol><li>Critical Section은 동시에 실행되면 공유 상태의 올바름이 깨질 수 있는 코드 구역이다.</li><li>Mutual Exclusion은 해당 구역에 한 번에 하나의 Thread만 들어가도록 하는 성질이다.</li><li>Mutex는 Mutual Exclusion을 제공하는 대표적인 Lock 도구다.</li><li>Lock 범위는 소스 코드 줄 수가 아니라 지켜야 할 Invariant를 기준으로 정해야 한다.</li><li>너무 큰 Lock은 concurrency를 줄이고, 너무 작은 Lock은 Race Condition을 남길 수 있다.</li></ol>
+</section>
+
+<section id="s11"><h2>11. 확인 질문 3~5개와 접어서 보는 해설</h2>
+<h3>Q1. Critical Section은 “공유 변수를 쓰는 한 줄”과 항상 같은가?</h3>
+<details><summary>해설 보기</summary><p>아니다. 공유 상태의 Invariant를 지키기 위해 하나의 논리적 상태 전이로 묶여야 하는 범위가 Critical Section이 될 수 있다. 예를 들어 재고 확인과 감소는 서로 다른 두 줄이어도 함께 보호해야 할 수 있다.</p><p><strong>흔한 오해:</strong> write 연산만 잠그면 항상 충분하다고 생각하는 것.</p></details>
+
+<h3>Q2. Mutual Exclusion이 보장되면 프로그램 전체가 병렬로 실행되지 않는가?</h3>
+<details><summary>해설 보기</summary><p>아니다. 같은 Mutex로 보호된 Critical Section만 동시에 들어가지 못한다. Lock 밖의 독립적인 코드는 다른 Thread와 동시에 진행될 수 있다.</p></details>
+
+<h3>Q3. Mutex가 이미 다른 Thread에 의해 잠겨 있으면 일반적인 blocking mutex에서 어떤 일이 일어날 수 있는가?</h3>
+<details><summary>해설 보기</summary><p>호출 Thread는 mutex가 사용 가능해질 때까지 block될 수 있다. 정확한 동작은 mutex 종류와 구현에 따라 달라질 수 있다.</p></details>
+
+<h3>Q4. 3~5분 실행 추적</h3>
+<p>초기 <code>stock=1</code>. A와 B가 같은 Mutex를 사용합니다. 아래 빈칸의 상태를 직접 채워보세요.</p>
+<table><thead><tr><th>순서</th><th>A</th><th>B</th><th>Mutex owner</th><th>stock</th></tr></thead><tbody>
+<tr><td>1</td><td>lock 성공</td><td></td><td>?</td><td>1</td></tr>
+<tr><td>2</td><td>stock 읽기</td><td>lock 시도</td><td>?</td><td>1</td></tr>
+<tr><td>3</td><td>stock=0</td><td>?</td><td>?</td><td>0</td></tr>
+<tr><td>4</td><td>unlock</td><td>?</td><td>?</td><td>0</td></tr>
+<tr><td>5</td><td></td><td>stock 읽기 → 0</td><td>?</td><td>0</td></tr>
+</tbody></table>
+<details><summary>실행 추적 해설 보기</summary><p>1: owner=A. 2: owner=A이고 B는 대기. 3: B 대기, owner=A. 4: A가 해제하면 B가 이후 획득 가능. 5: owner=B. B는 stock=0을 본 뒤 예약을 성공시키면 안 된다.</p></details>
+
+<h3>Q5. 설계 비교 — Lock을 함수 전체에 걸기 vs 재고 상태 전이 부분에만 걸기</h3>
+<details><summary>해설 보기</summary><p>함수 전체 Lock은 이해하기 쉬울 수 있지만 logging, 포맷팅, 독립 계산처럼 공유 상태 보호와 무관한 작업까지 직렬화할 수 있다. 상태 전이 부분만 보호하면 concurrency가 좋아질 수 있지만 범위를 잘못 줄이면 Race Condition이 남는다. 핵심 기준은 Invariant다.</p></details>
+</section>
+
+<section id="s12"><h2>12. 연구자의 관점</h2>
+<ul><li><strong>Correctness specification:</strong> Lock 구현 전에 어떤 Invariant와 허용 가능한 interleaving을 정의해야 하는가?</li><li><strong>Contention:</strong> 여러 Thread가 같은 Lock을 자주 원하면 대기 시간이 어떻게 커지는가?</li><li><strong>Granularity:</strong> coarse-grained lock과 fine-grained lock 사이에서 correctness·throughput·복잡성이 어떻게 달라지는가?</li><li><strong>Debuggability:</strong> 실제 race bug에서 “보호해야 할 상태 전이”를 어떻게 찾아낼 것인가?</li></ul>
+<p>이 관점은 이후 Software Engineering의 concurrency testing, static/dynamic race detection, observability와 자연스럽게 연결됩니다.</p>
+</section>
+
+<section id="s13"><h2>13. Research Question 후보</h2>
+<p class="small">1단계에서는 본격적인 Research Question 후보를 만들지 않습니다. 오늘은 “Lock의 존재”보다 <strong>보호해야 하는 상태 전이와 Invariant를 먼저 명세한다</strong>는 연구 습관만 가져갑니다.</p>
+</section>
+
+<section id="s14"><h2>14. 다음 학습 예고 — Day08</h2>
+<p><strong>조건 변수(Condition Variable): 조건이 될 때까지 기다리기</strong></p>
+<p>Mutex는 “동시에 들어오지 못하게” 할 수 있습니다. 하지만 다음 문제는 다릅니다.</p>
+<div class="callout"><strong>“Queue가 비어 있다면, Consumer는 Lock을 잡은 채 계속 확인해야 할까? 아니면 조건이 바뀔 때까지 효율적으로 기다릴 수 있을까?”</strong></div>
+<p>Day08에서는 Queue를 먼저 정의한 뒤 Condition Variable, Wait/Notify, 조건 재검사, Producer/Consumer를 배웁니다.</p>
+</section>
+
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2>
+<p><strong>필수 추가 숙제는 없습니다.</strong> 오늘 30분 이후 더 확인하고 싶을 때만 아래 범위를 보세요.</p>
+<ol>
+<li><strong>OSTEP — Locks</strong><br>지금 읽을 부분: “Locks: The Basic Idea”에서 shared variable update를 Critical Section으로 보고 lock/unlock으로 감싸는 부분.<br><a href="https://pages.cs.wisc.edu/~remzi/OSFEP/threads-locks.pdf">OSTEP Locks PDF</a></li>
+<li><strong>POSIX Programmer's Manual — pthread_mutex_lock(3p)</strong><br>지금 읽을 부분: mutex가 이미 다른 Thread에 잠겨 있을 때 block될 수 있다는 설명과 unlock 후 scheduling policy가 다음 획득자에 영향을 준다는 부분.<br><a href="https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html">pthread_mutex_lock(3p)</a></li>
+</ol>
+<div class="callout"><strong>오늘 읽지 않아도 되는 것:</strong> futex 내부 구현, spinlock, CAS, ticket lock, memory barrier, priority inheritance. 먼저 Critical Section과 Mutex의 계약을 정확히 이해합니다.</div>
+</section>
+
+<footer><p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 아직 확인되지 않음.</p><p>다음 예정 주제: Day08 — 조건 변수.</p></footer>
+</main></body></html>
