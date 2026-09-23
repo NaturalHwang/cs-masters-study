@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-23 Day08 — 조건 변수</title>
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--text:#1f2937;--muted:#667085;--line:#dfe3ea;--accent:#315efb;--accent-soft:#eef2ff;--warn:#fff7e6;--good:#edf9f1;--code:#111827}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo",Arial,sans-serif;line-height:1.72}
+main{max-width:960px;margin:0 auto;padding:28px 18px 68px}header,nav,section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin:0 0 16px}header{background:linear-gradient(135deg,#fff,#f2f5ff);padding:30px}
+h1{font-size:2rem;line-height:1.3;margin:4px 0 10px}h2{font-size:1.38rem;margin:0 0 14px}h3{font-size:1.08rem;margin:20px 0 8px}p{margin:8px 0 12px}ul,ol{padding-left:22px}li{margin:5px 0}.eyebrow{font-weight:760;color:var(--accent)}.muted,.small{color:var(--muted)}.small{font-size:.92rem}.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:14px 16px;border-radius:10px;margin:14px 0}.warn{border-left-color:#a66b00;background:var(--warn)}.good{border-left-color:#1f7a4d;background:var(--good)}
+pre{background:var(--code);color:#f9fafb;border-radius:12px;padding:16px;overflow:auto;line-height:1.5}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.diagram{white-space:pre;overflow:auto;background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.45}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.96rem}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#f4f6f8}details{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 14px;margin:10px 0}summary{cursor:pointer;font-weight:720}nav ul{columns:2;column-gap:28px}nav a,a{color:#2247c7;text-decoration:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.grid div{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}footer{color:var(--muted);font-size:.9rem;margin-top:24px}@media(max-width:650px){nav ul{columns:1}h1{font-size:1.65rem}}@media print{body{background:#fff}main{max-width:none;padding:0}header,nav,section,details{break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">CS-MASTERS-FOUNDATIONS v2.1 · Day08</div>
+<h1>조건 변수(Condition Variable): 조건이 될 때까지 기다리기</h1>
+<p class="muted">2026-09-23 · Week 2 — 동시성·동기화와 잘못된 실행 · 약 30분</p>
+<p><strong>오늘의 중심 질문:</strong> Mutex로 공유 상태를 안전하게 보호할 수 있어도, “지금은 할 일이 없으니 상태가 바뀔 때까지 기다려야 한다”는 문제는 어떻게 해결할까?</p>
+<div class="grid"><div><strong>2분</strong><br>주제·목표·연결</div><div><strong>4분</strong><br>선수지식 복습</div><div><strong>9분</strong><br>문제·핵심 개념</div><div><strong>4분</strong><br>실제 사례·Trade-off</div><div><strong>7분</strong><br>요약·확인 문제</div><div><strong>4분</strong><br>연구 관점·예고·자료</div></div>
+</header>
+
+<nav><h2>목차</h2><ul>
+<li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식</a></li><li><a href="#s5">5. 먼저 제시하는 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문과 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료</a></li>
+</ul></nav>
+
+<section id="s1"><h2>1. 오늘의 주제</h2>
+<p>Day07에서 <strong>Mutex</strong>를 사용해 Critical Section에 한 번에 한 Thread만 들어가도록 만들었습니다. 하지만 동시성 프로그램에는 또 다른 종류의 문제가 있습니다. 공유 상태는 안전하게 볼 수 있지만, <strong>지금 당장은 진행 조건이 만족되지 않아 기다려야 하는 경우</strong>입니다.</p>
+<p>오늘은 <strong>조건 변수(Condition Variable)</strong>, <strong>wait</strong>, <strong>signal/notify</strong>, <strong>조건 재검사</strong>, 그리고 하나의 작은 <strong>Producer/Consumer Queue</strong>를 통해 이 문제를 배웁니다.</p>
+<div class="callout"><strong>핵심 구분:</strong> Mutex는 “동시에 들어가지 못하게” 하고, Condition Variable은 “상태가 바뀔 때까지 효율적으로 기다리게” 합니다.</div>
+</section>
+
+<section id="s2"><h2>2. 학습 목표</h2>
+<ul>
+<li>Queue와 Producer/Consumer 문제를 작은 예제로 설명할 수 있다.</li>
+<li>Condition Variable이 Mutex와 다른 목적의 동기화 도구임을 설명할 수 있다.</li>
+<li><code>wait()</code>가 Mutex를 놓고 잠든 뒤, 깨어날 때 다시 Mutex를 획득하는 흐름을 추적할 수 있다.</li>
+<li>깨어난 뒤 조건을 반드시 <code>while</code>로 재검사해야 하는 이유를 설명할 수 있다.</li>
+</ul>
+</section>
+
+<section id="s3"><h2>3. 이전 학습과의 연결</h2>
+<div class="diagram">Day06
+Race Condition / Atomicity
+        ↓
+Day07
+Critical Section + Mutex
+“공유 상태를 안전하게 본다”
+        ↓
+Day08
+Condition Variable
+“상태가 원하는 조건이 될 때까지 기다린다”</div>
+<p>Mutex만 있으면 Queue가 비어 있는지 안전하게 검사할 수 있습니다. 하지만 Queue가 비어 있다면 Consumer는 <strong>언제 다시 검사해야 하는가?</strong> 이것이 오늘의 중심 문제입니다.</p>
+</section>
+
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2>
+<h3>4.1 Queue란?</h3>
+<p><strong>Queue</strong>는 데이터를 줄처럼 넣고 빼는 자료구조입니다. 오늘은 가장 단순하게 <strong>capacity = 1</strong>인 Queue를 사용합니다.</p>
+<div class="diagram">Producer -- put(item) --> [ Queue ] -- get() --> Consumer
+
+Queue 비어 있음: count = 0
+Queue 가득 참: count = 1</div>
+<p>일반적으로 FIFO(First In, First Out)를 떠올리면 되지만, 오늘의 핵심은 자료구조 알고리즘이 아니라 <strong>비었는지/가득 찼는지라는 상태 조건</strong>입니다.</p>
+
+<h3>4.2 Mutex 복습</h3>
+<pre><code>lock(mutex)
+// shared state 확인/변경
+unlock(mutex)</code></pre>
+<p>Mutex는 <code>count</code>와 Queue를 여러 Thread가 동시에 망가뜨리지 않게 보호합니다.</p>
+
+<h3>4.3 오늘의 두 Predicate</h3>
+<p><strong>Predicate</strong>는 “지금 진행해도 되는가?”를 판단하는 참/거짓 조건입니다.</p>
+<ul>
+<li>Consumer가 진행할 조건: <code>count &gt; 0</code> — Queue가 비어 있지 않다.</li>
+<li>Producer가 진행할 조건: <code>count &lt; capacity</code> — Queue가 가득 차지 않았다.</li>
+</ul>
+<div class="callout warn"><strong>깊이 제한:</strong> 오늘은 Semaphore를 해결책으로 섞지 않습니다. Semaphore는 Day09에서 목적과 상태 표현 방식의 차이를 별도로 비교합니다.</div>
+</section>
+
+<section id="s5"><h2>5. 먼저 제시하는 문제 상황</h2>
+<p>Consumer가 Queue에서 작업을 가져가려는데 Queue가 비어 있다고 합시다.</p>
+<pre><code>lock(mutex)
+if queue is empty:
+    ???
+item = queue.remove()
+unlock(mutex)</code></pre>
+<p>가장 단순한 생각은 반복해서 확인하는 것입니다.</p>
+<pre><code>while true:
+    lock(mutex)
+    if queue is not empty:
+        item = queue.remove()
+        unlock(mutex)
+        break
+    unlock(mutex)</code></pre>
+<p>이 방식은 <strong>Busy Waiting</strong>입니다. 실제 할 일이 없는 동안에도 계속 CPU를 얻어 Lock을 잡고 상태를 확인합니다.</p>
+<p>더 큰 문제는 “기다리는 동안 Mutex를 계속 잡고 있자”는 잘못된 해결책입니다.</p>
+<pre><code>lock(mutex)
+while queue is empty:
+    // mutex를 잡은 채 기다림  ← 문제
+</code></pre>
+<div class="callout warn"><strong>왜 문제인가?</strong> Producer도 Queue에 item을 넣으려면 같은 Mutex가 필요합니다. Consumer가 Mutex를 놓지 않으면 Producer가 상태를 바꿀 수 없어 영원히 기다릴 수 있습니다.</div>
+</section>
+
+<section id="s6"><h2>6. 핵심 개념 — 직관 → 예 → 정의 → 동작</h2>
+<h3>6.1 Condition Variable의 직관</h3>
+<p>Condition Variable은 “이 Predicate가 지금 false니까, 다른 Thread가 상태를 바꾸었다고 알려줄 때까지 나는 잠들겠다”를 표현하는 도구입니다.</p>
+<div class="callout good"><strong>Condition Variable 자체가 조건 값을 저장하는 것은 아닙니다.</strong> 실제 조건은 <code>count &gt; 0</code> 같은 공유 상태 기반 Predicate이고, Condition Variable은 그 상태 변화에 맞춰 기다리고 깨우는 통로입니다.</div>
+
+<h3>6.2 wait의 핵심 동작</h3>
+<p>전형적인 Condition Variable의 <code>wait(cv, mutex)</code>는 호출할 때 Mutex를 이미 가지고 있어야 합니다.</p>
+<div class="diagram">Consumer가 mutex 보유
+        ↓
+Predicate 확인: count == 0
+        ↓
+wait(cv, mutex)
+   ├─ mutex를 놓음
+   └─ waiting 상태로 잠듦
+      (이 전환이 경쟁을 만들지 않도록 결합됨)
+        ↓
+Producer가 mutex 획득 가능
+        ↓
+Producer가 item 추가 + signal
+        ↓
+Consumer가 깨어남
+        ↓
+consumer는 mutex를 다시 획득한 뒤 wait에서 돌아옴
+        ↓
+Predicate 재검사</div>
+<p>POSIX의 <code>pthread_cond_wait()</code> 같은 API에서는 wait가 Mutex를 원자적으로 놓으면서 Block하고, 성공적으로 돌아올 때 Mutex를 다시 소유합니다.</p>
+
+<h3>6.3 signal / notify</h3>
+<p><strong>signal</strong> 또는 언어에 따라 <strong>notify</strong>는 기다리는 Thread 중 하나가 다시 실행 가능해지도록 깨우는 동작입니다.</p>
+<p>하지만 “signal을 받았다 = Predicate가 반드시 true다”는 뜻이 아닙니다. signal은 <strong>상태가 바뀌었으니 다시 확인할 기회가 생겼다</strong>는 신호에 가깝습니다.</p>
+
+<h3>6.4 왜 if가 아니라 while인가?</h3>
+<p>다음 코드는 위험합니다.</p>
+<pre><code>lock(mutex)
+if queue is empty:
+    wait(notEmpty, mutex)
+item = queue.remove()
+unlock(mutex)</code></pre>
+<p>Thread가 깨어난 뒤 Queue가 여전히 비어 있을 수 있습니다. 예를 들어 Consumer C1과 C2가 모두 기다리고 있고 C1이 먼저 item을 가져가면, C2가 Mutex를 다시 얻었을 때는 이미 Queue가 비어 있을 수 있습니다. 구현에 따라 <strong>spurious wakeup</strong>도 허용될 수 있습니다.</p>
+<p>따라서 안전한 기본 형태는 다음입니다.</p>
+<pre><code>lock(mutex)
+while queue is empty:
+    wait(notEmpty, mutex)
+item = queue.remove()
+unlock(mutex)</code></pre>
+<div class="callout"><strong>기억할 패턴:</strong> “깨어났으니 진행”이 아니라 <strong>“깨어났으니 Lock을 가진 상태에서 Predicate를 다시 검사”</strong>입니다.</div>
+
+<h3>6.5 Producer / Consumer — capacity 1 Queue</h3>
+<p>하나의 Queue와 두 개의 상태 조건을 사용합니다.</p>
+<pre><code>// shared
+queue capacity = 1
+mutex
+notEmpty   // consumer가 기다림
+notFull    // producer가 기다림
+
+producer(item):
+    lock(mutex)
+    while queue is full:
+        wait(notFull, mutex)
+    queue.add(item)
+    signal(notEmpty)
+    unlock(mutex)
+
+consumer():
+    lock(mutex)
+    while queue is empty:
+        wait(notEmpty, mutex)
+    item = queue.remove()
+    signal(notFull)
+    unlock(mutex)
+    return item</code></pre>
+<p>Producer가 item을 넣으면 “이제 empty가 아닐 수 있다”고 Consumer를 깨웁니다. Consumer가 item을 빼면 “이제 full이 아닐 수 있다”고 Producer를 깨웁니다.</p>
+
+<h3>6.6 작은 실행 추적</h3>
+<table><thead><tr><th>순서</th><th>Consumer C</th><th>Producer P</th><th>Queue</th><th>Mutex</th></tr></thead><tbody>
+<tr><td>1</td><td>lock, empty 확인</td><td></td><td>[]</td><td>C</td></tr>
+<tr><td>2</td><td>wait(notEmpty) → mutex 놓고 잠듦</td><td></td><td>[]</td><td>해제</td></tr>
+<tr><td>3</td><td>waiting</td><td>lock</td><td>[]</td><td>P</td></tr>
+<tr><td>4</td><td>waiting</td><td>item X 추가</td><td>[X]</td><td>P</td></tr>
+<tr><td>5</td><td>깨울 대상이 됨</td><td>signal(notEmpty), unlock</td><td>[X]</td><td>해제</td></tr>
+<tr><td>6</td><td>mutex 재획득, empty 재검사</td><td></td><td>[X]</td><td>C</td></tr>
+<tr><td>7</td><td>X 제거, signal(notFull), unlock</td><td></td><td>[]</td><td>해제</td></tr>
+</tbody></table>
+</section>
+
+<section id="s7"><h2>7. 실제 시스템 사례</h2>
+<p>POSIX Threads의 Condition Variable API는 오늘 배운 구조를 직접 보여줍니다.</p>
+<ul>
+<li><code>pthread_cond_wait(cond, mutex)</code>: Mutex를 가진 상태에서 호출하고, Mutex를 놓으면서 Block한 뒤 돌아오기 전에 Mutex를 다시 획득합니다.</li>
+<li><code>pthread_cond_signal(cond)</code>: 해당 Condition Variable에서 기다리는 Thread 중 하나를 깨울 수 있습니다.</li>
+<li><code>pthread_cond_broadcast(cond)</code>: 기다리는 Thread들을 모두 깨우는 용도로 사용됩니다.</li>
+</ul>
+<p>POSIX 문서도 Condition Variable과 연결된 Boolean Predicate를 wait 이후 다시 평가해야 한다고 설명합니다. 즉, <strong>Predicate가 진실의 원천(SSoT)</strong>이고 wakeup 자체를 상태로 취급하면 안 됩니다.</p>
+<div class="callout warn"><strong>주의:</strong> 구체적인 wakeup 순서나 어떤 Thread가 먼저 Mutex를 다시 얻는지는 구현과 scheduler에 따라 달라질 수 있으므로 코드가 특정 순서를 가정하면 안 됩니다.</div>
+</section>
+
+<section id="s8"><h2>8. Trade-off와 대안</h2>
+<table><thead><tr><th>접근</th><th>장점</th><th>대가/위험</th></tr></thead><tbody>
+<tr><td>Busy Waiting</td><td>구조가 단순할 수 있음</td><td>조건이 오래 false면 CPU를 낭비하고 Lock 경쟁 증가</td></tr>
+<tr><td>Condition Variable</td><td>조건이 false인 동안 Thread를 Block시켜 효율적으로 기다림</td><td>Predicate·Mutex·signal 관계를 정확히 설계해야 함</td></tr>
+<tr><td>signal/notify one</td><td>필요한 수만 깨워 wakeup 비용을 줄일 수 있음</td><td>잘못된 종류의 waiter를 깨우는 설계면 진행이 꼬일 수 있음</td></tr>
+<tr><td>broadcast/notify all</td><td>조건을 만족할 수 있는 여러 waiter에게 재검사 기회 제공</td><td>많은 Thread가 동시에 깨어 Lock을 경쟁하는 비용 가능</td></tr>
+</tbody></table>
+<p>오늘의 핵심 설계 원칙은 “무조건 signal이 좋다/broadcast가 좋다”가 아니라 <strong>어떤 상태 변화가 어떤 waiter들의 Predicate를 true로 만들 수 있는가</strong>를 기준으로 선택하는 것입니다.</p>
+</section>
+
+<section id="s9"><h2>9. 간단한 심화</h2>
+<h3>9.1 Condition Variable은 이벤트 저장소가 아니다</h3>
+<p>Condition Variable을 “signal 개수를 쌓아두는 상자”처럼 생각하면 안 됩니다. 기다리는 Thread가 없을 때 signal이 발생했다고 해서, 나중에 들어온 waiter가 과거 signal을 소비한다고 일반화할 수 없습니다.</p>
+<p>따라서 올바른 프로그램은 항상 공유 상태의 Predicate를 먼저 확인합니다.</p>
+
+<h3>9.2 Lost Wakeup을 피하는 구조</h3>
+<p>“조건 검사 → wait 진입” 사이에 Producer가 상태를 바꾸고 signal을 보내면 signal을 놓칠 수 있지 않을까?”라는 걱정이 생깁니다. 그래서 Condition Variable wait는 <strong>같은 Mutex와 함께</strong> 사용되고, Mutex를 놓고 Block하는 전환이 경쟁을 만들지 않도록 정의됩니다.</p>
+<div class="callout good"><strong>정리:</strong> shared predicate를 Mutex로 보호하고, wait는 그 Mutex를 원자적으로 release+sleep하며, wakeup 후 Mutex를 다시 획득하고 Predicate를 while로 재검사합니다.</div>
+</section>
+
+<section id="s10"><h2>10. 핵심 요약</h2>
+<ol>
+<li>Mutex는 공유 상태 접근을 보호하고, Condition Variable은 원하는 상태가 될 때까지 기다리는 문제를 해결합니다.</li>
+<li>Condition Variable의 진짜 조건은 <code>queue not empty</code> 같은 공유 상태 Predicate입니다.</li>
+<li><code>wait(cv, mutex)</code>는 Mutex를 놓고 Block하며, 돌아오기 전에 Mutex를 다시 획득하는 형태로 사용됩니다.</li>
+<li>Wakeup은 조건이 true라는 보장이 아니므로 Predicate를 <code>while</code>로 재검사해야 합니다.</li>
+<li>Producer/Consumer에서는 상태 변화 뒤 적절한 waiter에게 signal/notify하여 진행 기회를 줍니다.</li>
+</ol>
+</section>
+
+<section id="s11"><h2>11. 확인 질문 3~5개와 접이식 해설</h2>
+<h3>Q1. Mutex가 있는데 Condition Variable이 왜 또 필요한가?</h3>
+<details><summary>해설 보기</summary><p>Mutex는 “동시에 접근하지 않기”를 해결하지만, 지금 Predicate가 false일 때 “언제까지 어떻게 기다릴지”는 해결하지 않습니다. Condition Variable은 상태가 바뀔 때까지 Thread를 Block시켜 기다리도록 합니다.</p></details>
+
+<h3>Q2. Consumer가 Queue가 비어 있을 때 Mutex를 잡은 채 잠들면 왜 문제가 되는가?</h3>
+<details><summary>해설 보기</summary><p>Producer도 같은 Mutex가 있어야 Queue에 item을 넣을 수 있다면, Producer가 상태를 바꾸지 못합니다. 그래서 wait는 기다리는 동안 Mutex를 놓아야 합니다.</p></details>
+
+<h3>Q3. 왜 <code>if empty: wait()</code>보다 <code>while empty: wait()</code>가 안전한가?</h3>
+<details><summary>해설 보기</summary><p>깨어난 뒤 다른 Consumer가 먼저 item을 가져갈 수 있고, 구현에 따라 spurious wakeup도 가능하기 때문입니다. Wakeup은 Predicate가 true라는 보장이 아니므로 Mutex를 다시 가진 상태에서 재검사해야 합니다.</p></details>
+
+<h3>Q4. 3~5분 실행 추적</h3>
+<p>capacity=1 Queue가 비어 있고 Consumer C1, C2가 모두 <code>notEmpty</code>에서 기다립니다. Producer가 item X 하나를 넣고 waiter 하나를 깨웁니다. 이후 C1이 X를 가져간 다음, 어떤 이유로 C2도 wait에서 돌아왔다고 합시다. C2가 <code>while</code> 대신 <code>if</code>를 사용했다면 어떤 잘못된 실행이 가능할까요?</p>
+<details><summary>해설 보기</summary><p>C2가 “이미 wait에서 돌아왔으니 item이 있다”고 가정하고 빈 Queue에서 remove를 시도할 수 있습니다. while이면 C2가 Mutex를 가진 상태에서 empty Predicate를 다시 검사하고 다시 wait합니다.</p></details>
+
+<h3>Q5. 설계 비교 — Busy Waiting vs Condition Variable</h3>
+<p>Queue에 item이 보통 수백 ms 뒤에 들어오는 시스템이라면 두 방식이 CPU 사용과 응답 준비 상태 측면에서 어떤 trade-off가 있을지 설명해보세요.</p>
+<details><summary>해설 보기</summary><p>Busy Waiting은 기다리는 동안 반복 검사로 CPU 시간을 소비할 수 있습니다. Condition Variable은 waiter를 Block시켜 CPU를 다른 작업에 쓸 수 있지만, wakeup·scheduling·Mutex 재획득 비용과 더 정확한 동기화 설계가 필요합니다.</p></details>
+</section>
+
+<section id="s12"><h2>12. 연구자의 관점</h2>
+<ul>
+<li><strong>Wakeup efficiency:</strong> 어떤 Thread를 몇 개 깨워야 불필요한 contention을 줄이면서 progress를 보장할 수 있는가?</li>
+<li><strong>Correctness testing:</strong> 드문 interleaving, spurious wakeup, signal timing을 테스트에서 어떻게 재현할 수 있는가?</li>
+<li><strong>Observability:</strong> waiter 수, wakeup 횟수, Lock 대기 시간을 어떻게 관찰하면 synchronization bottleneck을 찾을 수 있는가?</li>
+</ul>
+<p>이 관점은 이후 Software Engineering의 concurrency testing, deterministic scheduling, observability 연구와 연결될 수 있습니다.</p>
+</section>
+
+<section id="s13"><h2>13. Research Question 후보</h2>
+<p class="small">아직 1단계이므로 본격적인 RQ 후보는 만들지 않습니다. 지금은 “동시성 버그를 재현 가능한 execution trace로 어떻게 남길까?”라는 관찰 질문만 유지합니다.</p>
+</section>
+
+<section id="s14"><h2>14. 다음 학습 예고 — Day09</h2>
+<p><strong>세마포어(Semaphore): 동시에 들어갈 수 있는 수 제한하기</strong></p>
+<p>Condition Variable은 “Predicate가 바뀔 때까지 기다리는” 패턴을 배웠습니다. 다음에는 <strong>Permit이라는 정수 자원 수를 이용해 동시에 진행 가능한 실행 수를 제한</strong>하는 Semaphore를 배웁니다.</p>
+<div class="callout"><strong>다음 중심 질문:</strong> Mutex는 한 명만, Condition Variable은 조건 대기라면, “동시에 최대 N명까지 허용”은 어떻게 표현할까?</div>
+</section>
+
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2>
+<ol>
+<li><strong>OSTEP — Condition Variables</strong><br>지금 읽을 부분: wait/signal의 기본 의미, 반드시 상태 변수와 함께 사용하는 이유, Producer/Consumer의 <code>while</code> 기반 해법.<br><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf">OSTEP Condition Variables PDF</a></li>
+<li><strong>The Open Group POSIX — pthread_cond_wait</strong><br>지금 읽을 부분: wait가 Mutex를 원자적으로 release하며 block하고, return 전에 Mutex를 reacquire한다는 설명과 Predicate 재평가 규칙.<br><a href="https://pubs.opengroup.org/onlinepubs/9799919799/functions/pthread_cond_clockwait.html">POSIX condition wait specification</a></li>
+</ol>
+<div class="callout warn"><strong>오늘은 읽지 않아도 되는 것:</strong> Condition Variable 내부 구현, futex, scheduler 내부, semaphore 구현. 오늘은 사용 의미와 올바른 패턴만 정확히 잡습니다.</div>
+</section>
+
+<footer><p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 아직 미확인.</p><p>다음 예정 주제: Day09 — 세마포어.</p></footer>
+</main></body>
+</html>
