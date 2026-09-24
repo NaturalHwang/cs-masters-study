@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-24 Day09 — 세마포어</title>
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--text:#1f2937;--muted:#667085;--line:#dfe3ea;--accent:#315efb;--accent-soft:#eef2ff;--warn:#fff7e6;--good:#edf9f1;--code:#111827}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo",Arial,sans-serif;line-height:1.72}
+main{max-width:960px;margin:0 auto;padding:28px 18px 68px}header,nav,section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin:0 0 16px}header{background:linear-gradient(135deg,#fff,#f2f5ff);padding:30px}
+h1{font-size:2rem;line-height:1.3;margin:4px 0 10px}h2{font-size:1.38rem;margin:0 0 14px}h3{font-size:1.08rem;margin:20px 0 8px}p{margin:8px 0 12px}ul,ol{padding-left:22px}li{margin:5px 0}.eyebrow{font-weight:760;color:var(--accent)}.muted,.small{color:var(--muted)}.small{font-size:.92rem}.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:14px 16px;border-radius:10px;margin:14px 0}.warn{border-left-color:#a66b00;background:var(--warn)}.good{border-left-color:#1f7a4d;background:var(--good)}
+pre{background:var(--code);color:#f9fafb;border-radius:12px;padding:16px;overflow:auto;line-height:1.5}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.diagram{white-space:pre;overflow:auto;background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.45}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.96rem}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#f4f6f8}details{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 14px;margin:10px 0}summary{cursor:pointer;font-weight:720}nav ul{columns:2;column-gap:28px}nav a,a{color:#2247c7;text-decoration:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.grid div{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}footer{color:var(--muted);font-size:.9rem;margin-top:24px}@media(max-width:650px){nav ul{columns:1}h1{font-size:1.65rem}}@media print{body{background:#fff}main{max-width:none;padding:0}header,nav,section,details{break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">CS-MASTERS-FOUNDATIONS v2.1 · Day09</div>
+<h1>세마포어(Semaphore): 동시에 들어갈 수 있는 수 제한하기</h1>
+<p class="muted">2026-09-24 · Week 2 — 동시성·동기화와 잘못된 실행 · 약 30분</p>
+<p><strong>오늘의 중심 질문:</strong> Mutex처럼 “한 명만”이 아니라, 어떤 자원에 <strong>최대 N개 Thread만 동시에 접근</strong>하게 하려면 어떻게 표현할까?</p>
+<div class="grid"><div><strong>2분</strong><br>주제·목표·연결</div><div><strong>4분</strong><br>선수지식 복습</div><div><strong>9분</strong><br>문제·핵심 개념</div><div><strong>4분</strong><br>실제 사례·Trade-off</div><div><strong>7분</strong><br>요약·확인 문제</div><div><strong>4분</strong><br>연구 관점·예고·자료</div></div>
+</header>
+
+<nav><h2>목차</h2><ul>
+<li><a href="#s1">1. 오늘의 주제</a></li><li><a href="#s2">2. 학습 목표</a></li><li><a href="#s3">3. 이전 학습과의 연결</a></li><li><a href="#s4">4. 필요한 선수지식</a></li><li><a href="#s5">5. 먼저 제시하는 문제 상황</a></li><li><a href="#s6">6. 핵심 개념</a></li><li><a href="#s7">7. 실제 시스템 사례</a></li><li><a href="#s8">8. Trade-off와 대안</a></li><li><a href="#s9">9. 간단한 심화</a></li><li><a href="#s10">10. 핵심 요약</a></li><li><a href="#s11">11. 확인 질문과 해설</a></li><li><a href="#s12">12. 연구자의 관점</a></li><li><a href="#s13">13. Research Question 후보</a></li><li><a href="#s14">14. 다음 학습 예고</a></li><li><a href="#s15">15. 참고자료</a></li>
+</ul></nav>
+
+<section id="s1"><h2>1. 오늘의 주제</h2>
+<p>Day07에서는 <strong>Mutex</strong>로 Critical Section에 한 번에 하나의 Thread만 들어가게 했고, Day08에서는 <strong>Condition Variable</strong>로 특정 상태가 될 때까지 효율적으로 기다리게 했습니다.</p>
+<p>오늘은 세 번째 동기화 도구인 <strong>Semaphore</strong>를 배웁니다. Semaphore는 정수 형태의 <strong>permit(허가권)</strong>을 관리하여, 동시에 사용할 수 있는 자원 수 또는 동시에 들어갈 수 있는 실행 수를 제한하는 데 적합합니다.</p>
+<div class="callout"><strong>오늘의 핵심:</strong> Semaphore를 “Lock의 또 다른 이름”으로 외우지 않습니다. 핵심은 <strong>사용 가능한 permit의 수를 세고, 없으면 기다리며, 반환되면 다시 진행하게 하는 것</strong>입니다.</div>
+</section>
+
+<section id="s2"><h2>2. 학습 목표</h2>
+<ul>
+<li>Semaphore의 <strong>permit</strong> 개념을 설명할 수 있다.</li>
+<li><strong>acquire/wait</strong>와 <strong>release/post</strong>의 상태 변화를 작은 실행으로 추적할 수 있다.</li>
+<li>Counting Semaphore와 Binary Semaphore의 차이를 설명할 수 있다.</li>
+<li>Mutex, Condition Variable, Semaphore가 각각 어떤 문제를 해결하려는 도구인지 구분할 수 있다.</li>
+</ul>
+</section>
+
+<section id="s3"><h2>3. 이전 학습과의 연결</h2>
+<div class="diagram">Day06
+Race Condition / Atomicity
+        ↓
+Day07
+Mutex
+“한 번에 하나만 Critical Section에”
+        ↓
+Day08
+Condition Variable
+“Predicate가 true가 될 때까지 기다리기”
+        ↓
+Day09
+Semaphore
+“동시에 사용할 수 있는 permit 수를 제한하기”</div>
+<p>세 도구 모두 Thread를 멈추거나 진행시키는 동기화에 쓰일 수 있지만, <strong>표현하려는 제약이 다릅니다.</strong></p>
+</section>
+
+<section id="s4"><h2>4. 필요한 선수지식과 3~5분 복습</h2>
+<h3>4.1 Resource와 Permit</h3>
+<p>오늘은 서버 안에 동시에 사용할 수 있는 외부 작업 슬롯이 2개 있다고 가정합니다. 예를 들어 학습용 단순 모델에서 어떤 느린 외부 API를 동시에 최대 2개 요청만 보내고 싶다고 합시다.</p>
+<div class="diagram">사용 가능한 슬롯 2개
+
+[ permit ][ permit ]
+
+Thread가 하나 들어가면 permit 하나 소비
+Thread가 끝나면 permit 하나 반환</div>
+
+<h3>4.2 Blocked 상태</h3>
+<p>Day04에서 배운 것처럼 진행 조건이 충족되지 않은 Thread는 <strong>Blocked/Waiting</strong> 상태가 될 수 있습니다. Semaphore의 permit이 0일 때 <code>acquire()</code>를 시도한 Thread도 일반적으로 permit을 얻을 수 있을 때까지 기다립니다.</p>
+
+<h3>4.3 Mutex와 Condition Variable 한 줄 복습</h3>
+<ul>
+<li><strong>Mutex:</strong> Critical Section에 한 번에 하나의 Thread만 들어가도록 상호 배제(Mutual Exclusion)를 제공.</li>
+<li><strong>Condition Variable:</strong> 공유 상태 Predicate가 원하는 조건이 될 때까지 기다리고, 상태 변화 신호 후 다시 조건을 검사.</li>
+</ul>
+<div class="callout warn"><strong>깊이 제한:</strong> 오늘은 OS 내부 Semaphore 구현, futex, spinlock, 메모리 배리어를 다루지 않습니다. 하나의 정수 permit과 작은 실행만 추적합니다.</div>
+</section>
+
+<section id="s5"><h2>5. 먼저 제시하는 문제 상황</h2>
+<p>재고 예약 서버가 외부 결제 검증 API를 호출하는데, 학습용 제한으로 동시에 최대 2건만 검증하도록 만들고 싶다고 합시다.</p>
+<p>현재 Thread A와 B가 이미 검증 중이고, Thread C가 새로 들어옵니다.</p>
+<div class="diagram">동시 허용 수 = 2
+
+A → 검증 중
+B → 검증 중
+C → ???</div>
+<p>Mutex를 사용하면 가장 단순하게는 한 번에 1개만 허용하므로 필요 이상으로 직렬화됩니다. 우리가 원하는 조건은 “한 명만”이 아니라 <strong>최대 두 명까지</strong>입니다.</p>
+<p>이를 숫자로 표현하면 간단합니다.</p>
+<pre><code>permits = 2
+
+A acquire → permits = 1
+B acquire → permits = 0
+C acquire → permit 없음 → wait
+
+A release → permits 사용 가능
+C가 permit을 얻어 진행</code></pre>
+</section>
+
+<section id="s6"><h2>6. 핵심 개념 — 직관 → 예 → 정의 → 동작</h2>
+<h3>6.1 직관: Semaphore는 “사용 가능한 허가권의 개수”</h3>
+<p><strong>Counting Semaphore</strong>는 0 이상의 permit 수를 가진다고 생각하면 됩니다. 초기값이 N이면 동시에 최대 N개의 작업이 permit을 획득해 진행할 수 있습니다.</p>
+<div class="callout good"><strong>학습용 모델:</strong> permit이 있으면 하나 가져가고 진행합니다. permit이 없으면 기다립니다. 작업이 끝나면 permit을 돌려줍니다.</div>
+
+<h3>6.2 acquire / wait</h3>
+<p>API 이름은 환경에 따라 <code>acquire()</code>, <code>wait()</code>, <code>P()</code>, POSIX의 <code>sem_wait()</code> 등으로 다를 수 있습니다. 의미는 대략 다음과 같습니다.</p>
+<pre><code>acquire(semaphore):
+    permit이 있으면 하나 소비하고 진행
+    permit이 없으면 permit을 얻을 수 있을 때까지 기다림</code></pre>
+<p>POSIX <code>sem_wait()</code>의 관점에서는 Semaphore 값이 0보다 크면 값을 감소시키고 즉시 반환하며, 값이 0이면 감소시킬 수 있을 때까지 Block합니다.</p>
+
+<h3>6.3 release / post</h3>
+<p><code>release()</code>, <code>post()</code>, <code>V()</code>, POSIX의 <code>sem_post()</code> 등은 permit을 반환하는 동작입니다.</p>
+<pre><code>release(semaphore):
+    permit을 하나 반환
+    기다리는 Thread가 있다면 하나가 다시 진행할 기회를 얻음</code></pre>
+<p>“release를 호출하면 반드시 특정 Thread가 즉시 실행된다”는 뜻은 아닙니다. 어떤 Thread가 언제 CPU를 받는지는 스케줄링 정책과 구현에 영향을 받습니다.</p>
+
+<h3>6.4 작은 실행 추적</h3>
+<table>
+<thead><tr><th>순서</th><th>작업</th><th>사용 가능 permit</th><th>상태</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Semaphore(2)</td><td>2</td><td>A/B/C 모두 Ready 가능</td></tr>
+<tr><td>1</td><td>A acquire</td><td>1</td><td>A 진행</td></tr>
+<tr><td>2</td><td>B acquire</td><td>0</td><td>A, B 진행</td></tr>
+<tr><td>3</td><td>C acquire</td><td>0</td><td>C는 permit 대기</td></tr>
+<tr><td>4</td><td>A release</td><td>permit 하나 반환</td><td>C가 깨워져 permit을 얻을 수 있음</td></tr>
+<tr><td>5</td><td>C acquire 완료</td><td>0</td><td>B, C 진행</td></tr>
+</tbody>
+</table>
+<p>중요한 것은 실제 구현 내부의 순간적인 정수 표현을 외우는 것이 아니라, <strong>논리적으로 동시에 사용 중인 permit 수가 한도를 넘지 않는다는 보장</strong>을 이해하는 것입니다.</p>
+
+<h3>6.5 Counting Semaphore와 Binary Semaphore</h3>
+<table>
+<thead><tr><th>종류</th><th>permit 범위의 직관</th><th>대표 목적</th></tr></thead>
+<tbody>
+<tr><td>Counting Semaphore</td><td>0..N</td><td>N개의 동일한 자원/동시 작업 슬롯 제한</td></tr>
+<tr><td>Binary Semaphore</td><td>0 또는 1</td><td>하나의 신호/접근권 표현 가능</td></tr>
+</tbody>
+</table>
+<p>Binary Semaphore를 Mutual Exclusion에 사용할 수는 있지만, 일반적인 <strong>Mutex</strong>와 완전히 같은 개념이라고 보면 안 됩니다. Mutex는 보통 “누가 Lock을 획득했고 그 소유자가 해제한다”는 ownership 의미가 강하고, 구현에 따라 priority inheritance 같은 Mutex 전용 동작도 있을 수 있습니다. Semaphore는 permit의 획득·반환이라는 카운팅 의미가 중심입니다.</p>
+
+<h3>6.6 Semaphore vs Condition Variable</h3>
+<p>Condition Variable에서 signal은 대개 “상태가 바뀌었으니 Predicate를 다시 검사하라”는 알림이며, Predicate 자체는 별도의 공유 상태에 있습니다.</p>
+<p>Semaphore는 <strong>permit 수 자체가 동기화 상태</strong>입니다. permit을 미리 <code>release/post</code>하면 이후 <code>acquire/wait</code>가 그 permit을 소비할 수 있습니다. 이런 점에서 “알림의 기억 여부”에 대한 직관이 Condition Variable과 다릅니다.</p>
+<div class="callout"><strong>중요:</strong> Condition Variable은 Predicate + Mutex와 함께 상태를 기다리는 도구이고, Semaphore는 permit 카운트를 통해 사용 가능 수량 자체를 표현합니다.</div>
+</section>
+
+<section id="s7"><h2>7. 실제 시스템 사례</h2>
+<h3>7.1 Connection Pool 앞의 동시 접근 제한</h3>
+<p>실제 서버에서는 DB Connection Pool, 외부 API 호출, 파일 처리 worker 등 제한된 자원을 보호하기 위해 Semaphore와 유사한 동시성 제한이 사용될 수 있습니다.</p>
+<p>예를 들어 사용 가능한 작업 슬롯이 10개라면, 각 요청이 작업 시작 전에 permit을 획득하고 완료 후 반환하는 구조를 생각할 수 있습니다.</p>
+<pre><code>acquire(limit)
+try:
+    callSlowExternalService()
+finally:
+    release(limit)</code></pre>
+<div class="callout warn"><strong>실무 안전 포인트:</strong> permit을 획득한 뒤 예외가 발생해도 반드시 반환되도록 <code>finally</code> 같은 정리 경로가 필요합니다. 반환 누락은 시간이 지날수록 permit이 사라지는 것처럼 보여 시스템이 멈추는 원인이 될 수 있습니다.</div>
+
+<h3>7.2 POSIX Semaphore</h3>
+<p>POSIX는 <code>sem_init()</code>으로 초기값을 지정하고, <code>sem_wait()</code>와 <code>sem_post()</code>로 Semaphore를 조작하는 인터페이스를 정의합니다. Thread 간 공유 또는 적절한 조건에서 Process 간 공유도 가능합니다.</p>
+</section>
+
+<section id="s8"><h2>8. Trade-off와 대안</h2>
+<table>
+<thead><tr><th>도구</th><th>잘 맞는 질문</th><th>주의점</th></tr></thead>
+<tbody>
+<tr><td>Mutex</td><td>“이 Critical Section에 동시에 한 Thread만 들어가야 하는가?”</td><td>범위를 너무 크게 잡으면 불필요한 직렬화</td></tr>
+<tr><td>Condition Variable</td><td>“공유 상태가 특정 Predicate를 만족할 때까지 기다려야 하는가?”</td><td>Mutex와 Predicate 재검사가 필요</td></tr>
+<tr><td>Semaphore</td><td>“동시에 최대 N개까지만 허용해야 하는가?”</td><td>permit 누락/과다 release, 공정성 가정 주의</td></tr>
+</tbody>
+</table>
+<p>Semaphore 하나로 여러 동기화 패턴을 표현할 수 있지만, <strong>표현 가능하다는 것과 설계 의도가 명확하다는 것은 다릅니다.</strong> 목적에 맞는 primitive를 쓰면 코드의 invariant와 의도를 이해하기 쉬워집니다.</p>
+</section>
+
+<section id="s9"><h2>9. 간단한 심화</h2>
+<h3>9.1 Bounded Queue를 Semaphore로 표현하는 직관</h3>
+<p>Day08의 Producer/Consumer Queue를 Semaphore로 표현한다면, 개념적으로 다음 두 카운트를 둘 수 있습니다.</p>
+<ul>
+<li><code>items</code>: 현재 꺼낼 수 있는 item 수</li>
+<li><code>spaces</code>: 현재 넣을 수 있는 빈 칸 수</li>
+</ul>
+<pre><code>Producer:
+    acquire(spaces)
+    // queue에 item 추가 (queue 자체 수정은 별도 상호배제 필요)
+    release(items)
+
+Consumer:
+    acquire(items)
+    // queue에서 item 제거 (queue 자체 수정은 별도 상호배제 필요)
+    release(spaces)</code></pre>
+<p>여기서 Semaphore가 “item/빈 칸의 개수”를 표현하더라도, Queue 내부 구조를 동시에 수정하는 문제가 남아 있다면 <strong>별도의 Mutex</strong>가 필요할 수 있습니다. 즉 Semaphore가 모든 동시성 문제를 자동으로 해결하지는 않습니다.</p>
+
+<h3>9.2 Fairness는 자동 보장이 아니다</h3>
+<p>여러 Thread가 Semaphore를 기다릴 때 “가장 오래 기다린 Thread가 항상 먼저 permit을 받는다”는 보장은 API나 구현에 따라 다릅니다. 따라서 Semaphore를 썼다는 이유만으로 공정성(Fairness)이나 Starvation 방지가 자동 보장된다고 가정하면 안 됩니다.</p>
+</section>
+
+<section id="s10"><h2>10. 핵심 요약</h2>
+<ol>
+<li><strong>Semaphore</strong>는 permit 수로 동시에 허용되는 작업/자원의 수를 제한한다.</li>
+<li><strong>acquire/wait</strong>는 permit을 얻고, 없으면 기다린다. <strong>release/post</strong>는 permit을 반환한다.</li>
+<li>Counting Semaphore는 N개 동시 허용, Binary Semaphore는 0/1 상태를 표현할 수 있다.</li>
+<li>Mutex는 상호 배제, Condition Variable은 Predicate 대기, Semaphore는 permit 카운트가 중심 목적이다.</li>
+<li>Semaphore는 동시 접근 수를 제한하지만, permit 반환 누락·공정성·별도 공유 상태 보호 문제는 여전히 설계해야 한다.</li>
+</ol>
+</section>
+
+<section id="s11"><h2>11. 확인 질문 3~5개와 접이식 해설</h2>
+<h3>Q1. Semaphore의 초기값이 3이라는 것은 무슨 뜻인가?</h3>
+<details><summary>해설 보기</summary><p>학습용 직관에서는 동시에 최대 3개의 permit을 획득할 수 있다는 뜻입니다. 세 작업이 permit을 사용 중이면 네 번째 acquire는 permit이 반환될 때까지 기다립니다.</p><p><strong>흔한 오해:</strong> 초기값 3이 Thread를 정확히 3개 생성한다는 뜻은 아닙니다. Thread 생성 수와 permit 수는 별개입니다.</p></details>
+
+<h3>Q2. Mutex와 Semaphore(1)는 항상 완전히 같은가?</h3>
+<details><summary>해설 보기</summary><p>아닙니다. Semaphore 초기값을 1로 두면 한 번에 하나만 통과시키는 패턴을 표현할 수 있지만, Mutex는 보통 lock ownership과 상호 배제라는 명확한 의미를 가지며 구현별 추가 기능이 있을 수 있습니다. “표현 가능한 실행”과 “동일한 primitive”를 구분해야 합니다.</p></details>
+
+<h3>Q3. Condition Variable의 signal과 Semaphore의 release가 왜 같은 개념이 아닌가?</h3>
+<details><summary>해설 보기</summary><p>Condition Variable의 signal은 보통 별도 공유 상태 Predicate를 다시 검사하게 하는 알림입니다. Semaphore는 permit 카운트 자체를 변경하며, 미리 반환된 permit은 이후 acquire가 소비할 수 있습니다.</p></details>
+
+<h3>Q4. 3~5분 실행 추적</h3>
+<p>초기 <code>Semaphore(2)</code>이고 A, B, C, D가 순서대로 다음 행동을 합니다.</p>
+<pre><code>1. A acquire
+2. B acquire
+3. C acquire
+4. A release
+5. D acquire
+6. B release</code></pre>
+<p>각 단계에서 누가 진행 중이고 누가 permit을 기다리는지 직접 적어보세요. 4번 직후 C와 D 중 누가 먼저 permit을 얻는다고 반드시 말할 수 있을까요?</p>
+<details><summary>실행 추적 해설 보기</summary><p>1번 후 A가 permit 하나 사용, 2번 후 A/B가 두 permit을 모두 사용합니다. 3번 C는 기다립니다. 4번 A가 release하면 permit 하나가 사용 가능해지고 C가 진행할 기회를 얻습니다. 하지만 실제 깨우기/스케줄링 세부는 구현과 정책에 따라 다르므로 일반적인 Semaphore 개념만으로 “항상 특정 Thread가 즉시 실행된다”고 단정해서는 안 됩니다. 5번 D의 도착 시점과 스케줄링에 따라 관찰 순서는 구현에 좌우될 수 있습니다. 핵심 보장은 동시 permit 사용 수가 설정된 한도를 넘지 않는다는 점입니다.</p></details>
+
+<h3>Q5. 설계 비교</h3>
+<p>외부 API에 동시에 최대 5개 요청만 허용하려는 경우, Mutex 하나로 전체 호출을 감싸는 것과 Semaphore(5)를 사용하는 것의 차이를 설명해보세요.</p>
+<details><summary>해설 보기</summary><p>Mutex는 한 번에 하나만 허용해 필요 이상으로 직렬화합니다. Semaphore(5)는 최대 5개까지 동시에 진행하게 하면서 6번째부터 기다리게 할 수 있어 요구사항을 더 직접적으로 표현합니다.</p></details>
+</section>
+
+<section id="s12"><h2>12. 연구자의 관점</h2>
+<ul>
+<li><strong>Concurrency Limit vs Throughput:</strong> 허용 동시성 N을 늘릴수록 항상 처리량이 증가하는가? 외부 자원 포화나 Queueing 때문에 오히려 악화될 수 있습니다.</li>
+<li><strong>Fairness / Starvation:</strong> permit 배분 순서가 지연 분포와 tail latency에 어떤 영향을 주는가?</li>
+<li><strong>Resource Leak Detection:</strong> permit 반환 누락을 운영 중 어떻게 탐지할 수 있는가?</li>
+</ul>
+<p>중요한 연구 습관은 “Semaphore를 썼다”가 아니라 <strong>어떤 자원을 몇 개로 모델링했고, 어떤 invariant를 지키려는지</strong>를 먼저 명시하는 것입니다.</p>
+</section>
+
+<section id="s13"><h2>13. Research Question 후보</h2>
+<p class="small">1단계에서는 본격적인 Research Question 후보를 확정하지 않습니다. 오늘은 “동시성 제한 N이 성능과 공정성에 어떤 영향을 주는가?”라는 관찰 관점만 유지합니다.</p>
+</section>
+
+<section id="s14"><h2>14. 다음 학습 예고 — Day10</h2>
+<p><strong>Week 2 복습: 동기화와 교착 상태</strong></p>
+<p>Day06~09에서 Race Condition → Mutex → Condition Variable → Semaphore를 배웠습니다. 다음 회차에서는 이 도구들을 어떤 문제에 선택해야 하는지 연결하고, 두 개의 Lock을 서로 다른 순서로 잡을 때 발생할 수 있는 <strong>Deadlock</strong> 한 사례를 추적합니다.</p>
+<div class="callout"><strong>다음 중심 질문:</strong> “각 Thread가 Lock 하나씩 쥔 채 서로 상대 Lock을 기다리면 왜 아무도 진행하지 못할까?”</div>
+</section>
+
+<section id="s15"><h2>15. 참고자료와 지금 읽을 부분</h2>
+<p><strong>필수 추가 숙제는 없습니다.</strong> 오늘 30분 이후 더 확인하고 싶을 때만 아래 범위를 보세요.</p>
+<ol>
+<li><strong>OSTEP — Semaphores</strong><br>지금 읽을 부분: Semaphore 정의, <code>sem_wait()</code>/<code>sem_post()</code>, binary semaphore와 producer/consumer 예제의 초반부.<br><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf">OSTEP Semaphores PDF</a></li>
+<li><strong>The Open Group / POSIX — sem_init</strong><br>지금 읽을 부분: 초기값(value)이 Semaphore 초기 상태를 정한다는 설명과 thread/process 공유 범위.<br><a href="https://pubs.opengroup.org/onlinepubs/9799919799.2024edition/functions/sem_init.html">POSIX sem_init</a></li>
+<li><strong>The Open Group / POSIX — sem_post</strong><br>지금 읽을 부분: post가 Semaphore를 증가시키고 기다리는 Thread를 진행 가능하게 하는 설명.<br><a href="https://pubs.opengroup.org/onlinepubs/009695399/functions/sem_post.html">POSIX sem_post</a></li>
+</ol>
+<div class="callout warn"><strong>오늘은 읽지 않아도 되는 것:</strong> Semaphore의 커널 내부 구현, priority inversion 해결 알고리즘, lock-free primitive, 메모리 모델 세부.</div>
+</section>
+
+<footer>
+<p><strong>학습 상태:</strong> 자료 생성 완료. 사용자 열람·학습 완료·이해도는 아직 미확인.</p>
+<p>다음 예정 주제: Day10 — Week 2 복습: 동기화와 교착 상태.</p>
+</footer>
+</main></body>
+</html>
