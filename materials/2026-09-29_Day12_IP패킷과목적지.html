@@ -1,0 +1,61 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026-09-29 Day12 — IP·패킷과 목적지</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.7;max-width:900px;margin:auto;padding:24px;background:#f7f8fb;color:#1f2937}header,nav,section{background:#fff;border:1px solid #dfe3ea;border-radius:14px;padding:20px;margin:14px 0}h1,h2,h3{line-height:1.35}.muted{color:#667085}.note{background:#eef2ff;border-left:4px solid #315efb;padding:12px;border-radius:8px}pre{background:#111827;color:#fff;padding:14px;border-radius:10px;overflow:auto}table{border-collapse:collapse;width:100%}th,td{border:1px solid #dfe3ea;padding:9px;text-align:left}th{background:#f3f4f6}details{border:1px solid #dfe3ea;border-radius:10px;padding:10px;margin:8px 0}summary{cursor:pointer;font-weight:700}nav ol{columns:2}@media(max-width:650px){nav ol{columns:1}}@media print{body{background:#fff;max-width:none}}</style></head><body>
+<header><strong>CS-MASTERS-FOUNDATIONS v2.1 · Day12</strong><h1>IP·패킷과 목적지</h1><p class="muted">2026-09-29 · Week 3 · 약 30분</p><p><strong>중심 질문:</strong> 직접 연결되지 않은 원격 서버까지 IP packet은 어떻게 목적지 쪽으로 이동하는가?</p></header>
+<nav><strong>목차</strong><ol><li>오늘의 주제</li><li>학습 목표</li><li>이전 학습과의 연결</li><li>필요한 선수지식과 3~5분 복습</li><li>문제 상황</li><li>핵심 개념</li><li>실제 시스템 사례</li><li>Trade-off와 대안</li><li>간단한 심화</li><li>핵심 요약</li><li>확인 질문</li><li>연구자의 관점</li><li>Research Question 후보</li><li>다음 학습 예고</li><li>참고자료와 지금 읽을 부분</li></ol></nav>
+<section><h2>1. 오늘의 주제</h2><p>Day11의 Application·Transport·IP·Link 계층 중 IP를 확대한다. 핵심은 <strong>IP Address</strong>, <strong>IP packet</strong>, <strong>Router</strong>다.</p></section>
+<section><h2>2. 학습 목표</h2><ul><li>IP Address의 역할을 설명한다.</li><li>Source/Destination Address와 TTL/Hop Limit의 의미를 설명한다.</li><li>Router가 다음 hop을 고르는 흐름을 설명한다.</li><li>IP가 손실·지연·재정렬 가능성을 제거하지 않는다는 점을 이해한다.</li></ul></section>
+<section><h2>3. 이전 학습과의 연결</h2><pre>Application Message
+      ↓
+Transport
+      ↓
+IP packet
+      ↓
+Link</pre><p>Application은 업무 의미를 알고, IP는 목적지 쪽으로 데이터를 전달하는 책임을 가진다.</p></section>
+<section><h2>4. 필요한 선수지식과 3~5분 복습</h2><p><strong>Header</strong>는 계층이 전달에 필요한 제어 정보를 담는 부분이다. <strong>Host</strong>는 네트워크에 참여하는 시스템이고, <strong>Hop</strong>은 한 네트워크 장치에서 다음 장치로 이동하는 한 단계다.</p><p>IP Address는 Process ID가 아니라 IP 계층의 네트워크 주소다.</p></section>
+<section><h2>5. 문제 상황</h2><p>Client와 Server가 서로 다른 네트워크에 있으면 둘 사이에 여러 Router가 있을 수 있다. Client가 전체 경로를 직접 계산하는 대신 각 Router가 목적지 주소를 보고 다음 방향을 선택하는 방식으로 packet이 이동한다.</p></section>
+<section><h2>6. 핵심 개념</h2>
+<h3>6.1 IP Address</h3><p>IPv4는 32bit, IPv6는 128bit 주소를 사용한다. IP Address는 source와 destination을 표현하는 네트워크 계층 주소다.</p>
+<h3>6.2 IP packet</h3><table><tr><th>정보</th><th>역할</th></tr><tr><td>Source Address</td><td>출발 IP</td></tr><tr><td>Destination Address</td><td>목적지 IP</td></tr><tr><td>TTL / Hop Limit</td><td>forwarding 가능한 hop 수 제한</td></tr><tr><td>상위 계층 식별 정보</td><td>목적지 host에서 다음 계층으로 전달</td></tr></table>
+<h3>6.3 Router</h3><p>Router는 Destination Address와 자신의 forwarding 정보를 이용해 다음 hop 또는 출력 interface를 선택한다.</p>
+<pre>Destination Address 확인
+        ↓
+forwarding 정보 조회
+        ↓
+다음 hop 선택
+        ↓
+packet 전달</pre>
+<h3>6.4 Prefix</h3><p>Router는 주소 하나하나가 아니라 주소의 앞부분인 <strong>prefix</strong>를 이용해 네트워크 범위를 묶어 전달 규칙을 관리할 수 있다.</p>
+<h3>6.5 IP의 보장 범위</h3><p>IP는 end-to-end delivery, ordering, retransmission, exactly-once 처리를 보장하지 않는다. RFC 1122는 IP datagram이 손상, 중복, 순서 변경, 미도착할 수 있다고 설명한다.</p>
+<div class="note"><strong>정확한 표현:</strong> IP가 항상 실패한다는 뜻이 아니라, IP 계약 자체가 이러한 신뢰성을 보장하지 않는다는 뜻이다.</div>
+<h3>6.6 TTL / Hop Limit</h3><p>IPv4의 TTL과 IPv6의 Hop Limit은 packet이 routing loop 안에서 무한히 전달되는 것을 막기 위해 forwarding될 때 감소한다.</p>
+</section>
+<section><h2>7. 실제 시스템 사례</h2><pre>Client App
+  ↓
+Transport
+  ↓
+IP packet
+  ↓
+Router → Router
+  ↓
+Server IP
+  ↓
+Transport
+  ↓
+Server App</pre><p>중간 Router는 예약 요청의 productId 같은 업무 의미를 알 필요가 없다. Server Application도 중간 Router 각각을 직접 제어하지 않는다.</p></section>
+<section><h2>8. Trade-off와 대안</h2><table><tr><th>특성</th><th>장점</th><th>대가</th></tr><tr><td>Datagram 전달</td><td>단순한 기본 전달 모델</td><td>신뢰성·순서가 필요하면 상위 계층이 담당</td></tr><tr><td>계층 분리</td><td>Application이 물리망 세부를 몰라도 됨</td><td>장애 분석 시 여러 계층을 함께 봐야 함</td></tr><tr><td>Prefix 기반 전달</td><td>주소 범위를 묶어 관리</td><td>경로 계산 자체는 별도 복잡성을 가짐</td></tr></table></section>
+<section><h2>9. 간단한 심화</h2><p><strong>Address</strong>는 어디로 가는지 표현하고, <strong>Route/forwarding decision</strong>은 다음에 어디로 넘길지 결정한다. 둘은 같은 개념이 아니다.</p><p>IPv4의 TTL은 이름과 달리 현대 forwarding에서는 hop-count 성격이 중요하며, IPv6는 이를 Hop Limit이라 부른다.</p></section>
+<section><h2>10. 핵심 요약</h2><ol><li>IP Address는 IP 계층의 source/destination 주소다.</li><li>IP packet은 목적지 주소와 상위 계층 데이터를 운반한다.</li><li>Router는 목적지 주소와 forwarding 정보를 사용해 다음 hop을 고른다.</li><li>IP는 delivery와 ordering을 보장하지 않는다.</li><li>TTL/Hop Limit은 무한 forwarding을 제한한다.</li></ol></section>
+<section><h2>11. 확인 질문 3~5개와 접이식 해설</h2>
+<h3>Q1. IP Address가 Process를 직접 식별하는가?</h3><details><summary>해설 보기</summary><p>아니다. IP Address는 네트워크 계층 주소다. 한 host 안 여러 서비스의 구분은 Transport의 Port/Socket과 연결된다.</p></details>
+<h3>Q2. Router가 JSON body를 이해해야 하는가?</h3><details><summary>해설 보기</summary><p>기본 IP forwarding에서는 Destination Address와 forwarding 정보가 핵심이다.</p></details>
+<h3>Q3. packet 전송만으로 업무 성공을 보장할 수 있는가?</h3><details><summary>해설 보기</summary><p>아니다. 네트워크 전달과 Application 처리 성공은 서로 다른 사건이다.</p></details>
+<h3>Q4. 3~5분 실행 추적</h3><pre>Client → Router A → Router B → Server
+Hop Limit = 3</pre><p>각 Router에서 Hop Limit을 1씩 줄여 Server에 도달 가능한지 판단해보라.</p><details><summary>해설 보기</summary><p>Router A 이후 2, Router B 이후 1이 되어 Server까지 도달 가능하다. 중간 Router 수가 더 많아 0에 도달하면 더 forwarding되지 않는다.</p></details>
+<h3>Q5. 먼저 보낸 packet이 반드시 먼저 도착하는가?</h3><details><summary>해설 보기</summary><p>IP는 end-to-end ordering을 보장하지 않는다.</p></details>
+</section>
+<section><h2>12. 연구자의 관점</h2><p>분산시스템에서 네트워크를 단순한 느린 함수 호출로 보면 loss, delay, reordering 같은 중요한 실패를 놓칠 수 있다. Network Partition은 Day44에서 failure model과 함께 다룬다.</p></section>
+<section><h2>13. Research Question 후보</h2><p>1단계에서는 RQ를 확정하지 않는다. 다만 “분산 요청 latency를 Application 처리와 Network 전달로 어떻게 나누어 관찰할 것인가?”라는 관점을 기억한다.</p></section>
+<section><h2>14. 다음 학습 예고</h2><p><strong>Day13 — TCP와 UDP의 서로 다른 계약.</strong> TCP Byte Stream, UDP Datagram, 순서와 재전송 차이를 배운다.</p></section>
+<section><h2>15. 참고자료와 지금 읽을 부분</h2><ul><li><strong>RFC 791</strong>: Section 1.1~1.2와 2.3의 목적·addressing/routing 큰 그림. <a href="https://www.rfc-editor.org/rfc/rfc791.html">RFC Editor</a></li><li><strong>RFC 1122</strong>: Section 1.1.3의 Internet Layer 설명. <a href="https://www.rfc-editor.org/rfc/rfc1122.html">RFC Editor</a></li><li><strong>RFC 1812</strong>: IPv4 Router와 TTL 요구사항 큰 흐름. <a href="https://www.rfc-editor.org/rfc/rfc1812.html">RFC Editor</a></li><li><strong>RFC 8200</strong>: Section 3의 Source/Destination Address와 Hop Limit. <a href="https://www.rfc-editor.org/rfc/rfc8200.html">RFC Editor</a></li></ul><p class="muted">오늘은 BGP/OSPF, NAT, fragmentation 세부, IPv6 extension header 전체를 다루지 않는다.</p></section>
+</body></html>
