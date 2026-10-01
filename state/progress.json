@@ -1,11 +1,11 @@
 {
   "curriculum_version": "CS-MASTERS-FOUNDATIONS v2.1-github",
-  "last_successful_day": 13,
-  "next_day": 14,
-  "last_successful_path": "materials/2026-09-30_Day13_TCP와UDP의계약.html",
-  "last_successful_commit": "febb2968fe09217b2fa405747bdba532ed7e1a36",
+  "last_successful_day": 14,
+  "next_day": 15,
+  "last_successful_path": "materials/2026-10-01_Day14_Socket과ClientServer.html",
+  "last_successful_commit": "90aa6e8ccad537e6f22931574288183680e207e5",
   "last_run_status": "success",
-  "history_note": "Day01-Day13 are present in materials/.",
+  "history_note": "Day01-Day14 are present in materials/.",
   "user_reading_status": "unknown",
   "user_understanding_status": "unknown"
 }
